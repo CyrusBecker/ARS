@@ -1,0 +1,14 @@
+Root folder "PS D:\0College\STI\Capstone2025\ProjectFolder\arm-scheduling-system> npm install mssql msnodesqlv8"
+
+Clear NPM Cache
+npm cache clean --force
+
+Install again
+npm install mssql msnodesqlv8
+
+delete again:
+rm -rf node_modules
+rm package-lock.json
+
+reinstall:
+npm install

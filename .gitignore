@@ -1,0 +1,25 @@
+# Node.js
+/node_modules/
+
+# Build output
+/dist/
+/build/
+
+# Log files
+*.log
+
+# Operating system files
+Thumbs.db       # Windows
+
+# TypeScript build output
+*.tsbuildinfo
+
+# Vite cache
+.vite/
+
+# Optional: Ignore temporary files created by your editor (e.g., VS Code)
+.vscode/
+
+# Dependency management files (optional, depends on your workflow)
+package-lock.json   # npm
+yarn.lock           # yarn
