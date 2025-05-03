@@ -1,5 +1,5 @@
 import React from "react";
-import { Box, Toolbar, } from "@mui/material";
+import { Box, Toolbar } from "@mui/material";
 import Navigation from "./Navigation";
 import DrawerWithToggle, { MenuItem } from "./Drawer";
 import HomeIcon from "@mui/icons-material/Home";
@@ -24,48 +24,48 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
 
   const menuItems: MenuItem[] = [
     {
-        text: "Home",
-        icon: <HomeIcon />,
-        path: "/dashboard",
-      },
-      {
-        text: "Schedule",
-        icon: <ScheduleIcon />,
-        hasSubmenu: true,
-        submenuItems: [
-          { text: "Schedule Overview", path: "#" },
-          { text: "Faculty", path: "#" },
-        ],
-      },
-      {
-       text: "Curriculum",
-       icon: <SchoolIcon />,
-       hasSubmenu: true,
-       submenuItems: [
-        {text: "Create Curriculum", path: '/curriculum/add' }, 
-        {text: "View Curriculum", path: '#'}, 
-       ]
-      },
-      {
-        text: "Room Management",
-        icon: <RoomIcon />,
-        path: "#",
-      },
-      {
-        text: "Archive",
-        icon: <ArchiveIcon />,
-        hasSubmenu: true,
-        submenuItems: [
-          { text: "Schedule Archive", path: "#" },
-          { text: "Faculty Archive", path: "#" },
-          { text: "Curriculum Archive", path: "#" },
-        ],
-      },
+      text: "Home",
+      icon: <HomeIcon />,
+      path: "/",
+    },
+    {
+      text: "Schedule",
+      icon: <ScheduleIcon />,
+      hasSubmenu: true,
+      submenuItems: [
+        { text: "Schedule Overview", path: "/scheduleOverview" },
+        { text: "Faculty", path: "/facultyOverview" },
+      ],
+    },
+    {
+      text: "Curriculum",
+      icon: <SchoolIcon />,
+      hasSubmenu: true,
+      submenuItems: [
+        { text: "Create Curriculum", path: "/curriculum/add" },
+        { text: "View Curriculum", path: "/curriculumOverview" },
+      ],
+    },
+    {
+      text: "Room Management",
+      icon: <RoomIcon />,
+      path: "#",
+    },
+    {
+      text: "Archive",
+      icon: <ArchiveIcon />,
+      hasSubmenu: true,
+      submenuItems: [
+        { text: "Schedule Archive", path: "#" },
+        { text: "Faculty Archive", path: "#" },
+        { text: "Curriculum Archive", path: "#" },
+      ],
+    },
   ];
 
   return (
     <Box sx={{ display: "flex" }}>
-      <Navigation onMenuClick={handleDrawerToggle}/>
+      <Navigation onMenuClick={handleDrawerToggle} />
       <DrawerWithToggle
         open={drawerOpen}
         menuItems={menuItems}
@@ -75,7 +75,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         onScheduleClick={() => setScheduleOpen(!scheduleOpen)}
         onCurriculumClick={() => setCurriculumOpen(!curriculumOpen)}
         onArchiveClick={() => setArchiveOpen(!archiveOpen)}
-      />*
+      />
+      *
       <Box
         component="main"
         sx={{
@@ -83,7 +84,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           p: 3,
           width: { sm: `calc(100% - ${drawerOpen ? 383 : 0}px)` },
           ml: drawerOpen ? "383px" : "0px", // "240px" : "60px"  Appbar Width
-          mt: '64px', // Appbar height
+          mt: "64px", // Appbar height
           transition: "margin-left 0.3s ease, width 0.3s ease",
         }}
       >

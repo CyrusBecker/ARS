@@ -14,15 +14,13 @@ const Dashboard: React.FC = () => {
     {
       section: "Schedules and Faculty",
       cards: [
-        { title: "Schedule Overview", path: "#" },
-        { title: "Faculty", path: "#" },
+        { title: "Schedule Overview", path: "/scheduleOverview" },
+        { title: "Faculty", path: "/facultyOverview" },
       ],
     },
     {
       section: "Curriculum",
-      cards: [
-        { title: "Curriculum Management", path: "/curriculumOverview"},
-      ]
+      cards: [{ title: "Curriculum Management", path: "/curriculumOverview" }],
     },
     {
       section: "Room Management",
@@ -41,13 +39,13 @@ const Dashboard: React.FC = () => {
   return (
     <MainLayout>
       <Box sx={{ maxWidth: "1200px", mx: "auto", mt: 2 }}>
-        <Paper 
-          elevation={0} 
-          sx={{ 
-            p: 3, 
-            mb: 3, 
+        <Paper
+          elevation={0}
+          sx={{
+            p: 3,
+            mb: 3,
             borderRadius: 2,
-            bgcolor: 'background.default'
+            bgcolor: "background.default",
           }}
         >
           <Typography variant="h4" fontWeight={600} gutterBottom>
@@ -59,31 +57,33 @@ const Dashboard: React.FC = () => {
         </Paper>
 
         {dashboardGroups.map((group, i) => (
-          <Paper 
+          <Paper
             key={i}
-            elevation={1} 
-            sx={{ 
-              p: 2, 
-              mb: 3, 
-              borderRadius: 2 
+            elevation={1}
+            sx={{
+              p: 2,
+              mb: 3,
+              borderRadius: 2,
             }}
           >
-            <Typography 
-              variant="h6" 
-              fontWeight={500} 
-              gutterBottom 
+            <Typography
+              variant="h6"
+              fontWeight={500}
+              gutterBottom
               sx={{ p: 1 }}
             >
               {group.section}
             </Typography>
             <Divider sx={{ mb: 2 }} />
-            <Box sx={{ 
-              display: "flex", 
-              flexWrap: "wrap", 
-              gap: 2 
-            }}>
+            <Box
+              sx={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: 2,
+              }}
+            >
               {group.cards.map((card, j) => (
-                <Box 
+                <Box
                   key={j}
                   component="a"
                   href={card.path}
@@ -93,8 +93,8 @@ const Dashboard: React.FC = () => {
                       xs: "100%",
                       sm: "calc(50% - 8px)",
                       md: "calc(33.33% - 10.67px)",
-                      lg: "calc(25% - 12px)"
-                    }
+                      lg: "calc(25% - 12px)",
+                    },
                   }}
                 >
                   <Card
@@ -114,11 +114,7 @@ const Dashboard: React.FC = () => {
                     }}
                   >
                     <CardContent>
-                      <Typography 
-                        align="center" 
-                        fontWeight={600}
-                        variant="h6"
-                      >
+                      <Typography align="center" fontWeight={600} variant="h6">
                         {card.title}
                       </Typography>
                     </CardContent>

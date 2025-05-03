@@ -1,5 +1,6 @@
 # Node.js
 /node_modules/
+server/node_modules/
 
 # Build output
 /dist/
@@ -20,6 +21,9 @@ Thumbs.db       # Windows
 # Optional: Ignore temporary files created by your editor (e.g., VS Code)
 .vscode/
 
-# Dependency management files (optional, depends on your workflow)
-package-lock.json   # npm
+# Dependency management files (important for reproducible builds)
 yarn.lock           # yarn
+
+# Ensure specific files/folders are not ignored
+!src/components/common/
+!src/components/Theme/

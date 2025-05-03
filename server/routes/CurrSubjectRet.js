@@ -17,8 +17,7 @@ router.post("/curriculums", async (req, res) => {
       .request()
       .input("AcademicYear", academicYear)
       .input("ProgramCode", programCode)
-      .input("Notes", notes)
-      .query(`
+      .input("Notes", notes).query(`
         INSERT INTO Curriculums (AcademicYear, ProgramCode, Notes)
         OUTPUT INSERTED.CurriculumID
         VALUES (@AcademicYear, @ProgramCode, @Notes)
@@ -28,7 +27,16 @@ router.post("/curriculums", async (req, res) => {
 
     // Insert each subject into the CurriculumSubjects table
     for (const subject of subjects) {
-      const { Course_Code, Level, Semester, Lec, Lab, Units, Boolean } = subject;
+      const {
+        Course_Code,
+        Course_Name,
+        Level,
+        Semester,
+        Lec,
+        Lab,
+        Units,
+        Boolean,
+      } = subject;
 
       // Get SubjectID for the given Course_Code
       const subjectRes = await pool
@@ -36,24 +44,48 @@ router.post("/curriculums", async (req, res) => {
         .input("CourseCode", Course_Code)
         .query("SELECT SubjectID FROM Subjects WHERE CourseCode = @CourseCode");
 
-      if (subjectRes.recordset.length === 0) continue;
+      let subjectID;
 
-      const subjectID = subjectRes.recordset[0].SubjectID;
+      if (subjectRes.recordset.length === 0) {
+        // 2. If not found, insert it into the Subjects table
+        const insertSubject = await pool
+          .request()
+          .input("CourseCode", Course_Code)
+          .input("CourseName", Course_Name)
+          .input("Units", Units)
+          .input("LectureHours", Lec)
+          .input("LabHours", Lab)
+          .input("IsLab", Boolean ? 1 : 0)
+          .input("ProgramCode", "BSIT") // default program
+          .query(`
+            INSERT INTO Subjects (CourseCode, CourseName, Units, LectureHours, LabHours, IsLab, ProgramCode)
+            OUTPUT INSERTED.SubjectID
+            VALUES (@CourseCode, @CourseName, @Units, @LectureHours, @LabHours, @IsLab, @ProgramCode)
+          `);
 
-      // Insert the subject into CurriculumSubjects
+        subjectID = insertSubject.recordset[0].SubjectID;
+      } else {
+        subjectID = subjectRes.recordset[0].SubjectID;
+      }
+
+      // Insert the subjects into CurriculumSubjects
       await pool
         .request()
         .input("CurriculumID", curriculumID)
         .input("SubjectID", subjectID)
-        .input("YearLevel", parseInt(Level))  // Assuming `Level` is a string, convert to number
-        .input("Semester", Semester.includes("1") ? 1 : 2)  // 1st Semester = 1, 2nd Semester = 2
+        .input("YearLevel", parseInt(Level)) // Assuming `Level` is a string, convert to number
+        .input("Semester", Semester.includes("1") ? 1 : 2) // 1st Semester = 1, 2nd Semester = 2
         .query(`
           INSERT INTO CurriculumSubjects (CurriculumID, SubjectID, YearLevel, Semester)
           VALUES (@CurriculumID, @SubjectID, @YearLevel, @Semester)
         `);
     }
 
-    res.json({ success: true, message: "Curriculum created successfully", curriculumID });
+    res.json({
+      success: true,
+      message: "Curriculum created successfully",
+      curriculumID,
+    });
   } catch (err) {
     console.error("Error creating curriculum:", err);
     res.status(500).send("Server error while creating curriculum");
@@ -64,21 +96,18 @@ router.post("/curriculums", async (req, res) => {
 router.get("/subjects", async (req, res) => {
   try {
     const pool = await poolPromise;
-    const search = (req.query.search || '').trim(); // || const search = req.query.search || '';
+    const search = (req.query.search || "").trim(); // || const search = req.query.search || '';
 
-    if (search === '') {
+    if (search === "") {
       return res.json([]); // Or return message like "No term provided"
     }
 
-    const result = await pool
-      .request()
-      .input("search", `%${search}%`)
-      .query(`
+    const result = await pool.request().input("search", `%${search}%`).query(`
         SELECT * FROM Subjects
         WHERE ProgramCode = 'BSIT'
         AND (CourseCode LIKE @search OR CourseName LIKE @search)
       `);
-      console.log("Searching:", search);
+    console.log("Searching:", search);
 
     res.json(result.recordset);
   } catch (err) {
@@ -101,7 +130,8 @@ router.post("/curriculum-subjects", async (req, res) => {
     console.log("Received rows:", rows);
 
     for (const row of rows) {
-      const subjRes = await pool.request()
+      const subjRes = await pool
+        .request()
         .input("CourseCode", row.Course_Code)
         .query(`SELECT SubjectID FROM Subjects WHERE CourseCode = @CourseCode`);
 
@@ -109,14 +139,14 @@ router.post("/curriculum-subjects", async (req, res) => {
 
       const subjectID = subjRes.recordset[0].SubjectID;
       const yearLevel = parseInt(row.Level); // assuming Level is in '1st Year' format
-      const semester = row.Semester.includes('1') ? 1 : 2;
+      const semester = row.Semester.includes("1") ? 1 : 2;
 
-      await pool.request()
+      await pool
+        .request()
         .input("CurriculumID", curriculumID)
         .input("SubjectID", subjectID)
         .input("YearLevel", yearLevel)
-        .input("Semester", semester)
-        .query(`
+        .input("Semester", semester).query(`
           IF EXISTS (SELECT 1 FROM CurriculumSubjects WHERE CurriculumID = @CurriculumID AND SubjectID = @SubjectID)
           BEGIN
             -- Update the existing record if it exists
@@ -140,16 +170,13 @@ router.post("/curriculum-subjects", async (req, res) => {
   }
 });
 
-// Might be the method to load all the existing curriculums for CurriculumLists.tsx
-router.get('/curriculums', async (req, res) => {
+// Load all the existing curriculums for CurriculumLists.tsx
+router.get("/curriculums", async (req, res) => {
   try {
     const pool = await poolPromise;
-    const program = req.query.program || 'BSIT';
+    const program = req.query.program || "BSIT";
 
-    const result = await pool
-      .request()
-      .input("ProgramCode", program)
-      .query(`
+    const result = await pool.request().input("ProgramCode", program).query(`
         SELECT CurriculumID, AcademicYear, ProgramCode, Notes
         FROM Curriculums
         WHERE ProgramCode = @ProgramCode
@@ -163,13 +190,13 @@ router.get('/curriculums', async (req, res) => {
   }
 });
 
-// Definitely getting the Id of a curriculum record
+// Retreiving the Id of a curriculum record
 router.get("/curriculum/:id", async (req, res) => {
   try {
-    console.log('Received curriculum ID:', req.params.id); // Log the incoming ID
+    console.log("Received curriculum ID:", req.params.id); // Log the incoming ID
     const curriculumID = req.params.id;
 
-    const pool = await poolPromise // The appended fix
+    const pool = await poolPromise; // The appended fix
     const result = await pool
       .request()
       .input("CurriculumID", curriculumID)
@@ -186,14 +213,13 @@ router.get("/curriculum/:id", async (req, res) => {
   }
 });
 
-// I think this is the method to load all the subjects for an existing curriculum when editing an existing curriculum
+// Loads all the subjects for an existing curriculum when editing an existing curriculum
 router.get("/curriculum-subjects/:curriculumId", async (req, res) => {
   try {
     const pool = await poolPromise;
     const { curriculumId } = req.params;
 
-    const result = await pool.request()
-      .input("CurriculumID", curriculumId)
+    const result = await pool.request().input("CurriculumID", curriculumId)
       .query(`
         SELECT 
           cs.YearLevel,
@@ -213,6 +239,266 @@ router.get("/curriculum-subjects/:curriculumId", async (req, res) => {
   } catch (err) {
     console.error("Failed to load curriculum subjects:", err);
     res.status(500).send("Server Error");
+  }
+});
+
+// Load all professors
+router.get("/professors", async (req, res) => {
+  try {
+    const pool = await poolPromise;
+    const result = await pool
+      .request()
+      .query(`SELECT ProfessorID, FullName, EmploymentStatus FROM Professors`);
+
+    res.json(result.recordset);
+  } catch (err) {
+    console.error("Error fetching professors:", err);
+    res.status(500).send("Server error while loading professors");
+  }
+});
+
+// Create new professor
+router.post("/professors", async (req, res) => {
+  try {
+    const pool = await poolPromise;
+    const { fullName, employmentStatus } = req.body;
+
+    if (!fullName || !employmentStatus) {
+      return res.status(400).json({ message: "Missing professor details" });
+    }
+
+    const maxUnits = employmentStatus === "Full-Time" ? 24.0 : 15.0;
+
+    const result = await pool
+      .request()
+      .input("FullName", fullName)
+      .input("EmploymentStatus", employmentStatus)
+      .input("MaxUnits", maxUnits).query(`
+        INSERT INTO Professors (FullName, EmploymentStatus, MaxUnits, CurrentUnits)
+        OUTPUT INSERTED.ProfessorID
+        VALUES (@FullName, @EmploymentStatus, @MaxUnits, 0.00)
+      `);
+
+    const professorID = result.recordset[0].ProfessorID;
+
+    res.json({
+      success: true,
+      message: "Professor added successfully",
+      professorID,
+    });
+  } catch (err) {
+    console.error("Error adding professor:", err);
+    res.status(500).send("Server error while adding professor");
+  }
+});
+
+// Saving the subjects assigned to the new professor
+router.post("/professor-subjects/add", async (req, res) => {
+  try {
+    const pool = await poolPromise;
+    const { professorID, subjects } = req.body;
+
+    console.log("Received professorID:", professorID);
+    console.log("Received subjects array:", subjects);
+
+    if (!professorID || !Array.isArray(subjects)) {
+      return res
+        .status(400)
+        .json({ message: "Missing professorID or subjects array" });
+    }
+
+    for (const subjectID of subjects) {
+      console.log("Processing subjectID:", subjectID);
+
+      // Check if the professor already has this subject assigned
+      const checkExistence = await pool
+        .request()
+        .input("ProfessorID", professorID)
+        .input("SubjectID", subjectID).query(`
+          SELECT 1 FROM ProfessorSubjects
+          WHERE ProfessorID = @ProfessorID AND SubjectID = @SubjectID
+        `);
+
+      if (checkExistence.recordset.length > 0) {
+        console.log(`Professor already assigned to SubjectID: ${subjectID}`);
+        continue; // Skip insertion if already exists
+      }
+
+      // Insert new professor-subject relationship
+      const insertResult = await pool
+        .request()
+        .input("ProfessorID", professorID)
+        .input("SubjectID", subjectID).query(`
+          BEGIN TRY
+            INSERT INTO ProfessorSubjects (ProfessorID, SubjectID)
+            VALUES (@ProfessorID, @SubjectID);
+          END TRY
+          BEGIN CATCH
+            SELECT ERROR_MESSAGE() AS ErrorMessage;
+          END CATCH;
+        `);
+
+      console.log("Insert result:", insertResult);
+    }
+
+    res.json({ success: true, message: "Professor subjects created!" });
+  } catch (err) {
+    console.error("Error adding professor subjects:", err);
+    res.status(500).send("Server error while adding professor subjects");
+  }
+});
+
+router.post("/professor-subjects/update", async (req, res) => {
+  try {
+    const pool = await poolPromise;
+    const { professorID, subjects } = req.body;
+
+    console.log("Received professorID:", professorID);
+    console.log("Received subjects array:", subjects);
+
+    if (!professorID || !Array.isArray(subjects)) {
+      return res
+        .status(400)
+        .json({ message: "Missing professorID or subjects array" });
+    }
+
+    // First, remove all existing
+    const deleteResult = await pool
+      .request()
+      .input("ProfessorID", professorID)
+      .query(`DELETE FROM ProfessorSubjects WHERE ProfessorID = @ProfessorID`);
+
+    console.log("Delete result:", deleteResult);
+
+    // Now insert fresh
+    for (const courseCode of subjects) {
+      console.log("Processing courseCode:", courseCode);
+
+      const result = await pool
+        .request()
+        .input("CourseCode", courseCode)
+        .query(`SELECT SubjectID FROM Subjects WHERE CourseCode = @CourseCode`);
+
+      console.log("Query result:", result);
+
+      if (result.recordset.length === 0) {
+        console.log(`No Subject found for CourseCode: ${courseCode}`);
+        continue;
+      }
+
+      const subjectID = result.recordset[0].SubjectID;
+      console.log("Found SubjectID:", subjectID);
+
+      const insertResult = await pool
+        .request()
+        .input("ProfessorID", professorID)
+        .input("SubjectID", subjectID).query(`
+          INSERT INTO ProfessorSubjects (ProfessorID, SubjectID)
+          VALUES (@ProfessorID, @SubjectID)
+        `);
+
+      console.log("Insert result:", insertResult);
+    }
+
+    res.json({ success: true, message: "Professor subjects updated!" });
+  } catch (err) {
+    console.error("Error updating professor subjects:", err);
+    res.status(500).send("Server error while updating professor subjects");
+  }
+});
+
+// Load professor info and eligible subjects
+router.get("/professor/:id", async (req, res) => {
+  try {
+    const pool = await poolPromise;
+    const id = parseInt(req.params.id, 10);
+
+    if (isNaN(id)) {
+      return res.status(400).json({ message: "Invalid professor ID" });
+    }
+
+    // Fetch professor details
+    const profResult = await pool.request().input("ProfessorID", id).query(`
+        SELECT ProfessorID, 
+               FullName, 
+               EmploymentStatus, 
+               MaxUnits, 
+               CurrentUnits
+        FROM Professors
+        WHERE ProfessorID = @ProfessorID
+      `);
+
+    // Fetch the subjects the professor is teaching
+    const subjectsResult = await pool.request().input("ProfessorID", id).query(`
+        SELECT ps.SubjectID, s.CourseCode, s.CourseName, s.Units
+        FROM ProfessorSubjects ps
+        JOIN Subjects s ON ps.SubjectID = s.SubjectID
+        WHERE ps.ProfessorID = @ProfessorID
+      `);
+
+    // Return the professor details and their eligible subjects
+    res.json({
+      professor: profResult.recordset[0], // Single professor data
+      eligibleSubjects: subjectsResult.recordset, // List of subjects the professor teaches
+    });
+  } catch (err) {
+    console.error("Error fetching professor details:", err);
+    res.status(500).send("Server error while fetching professor details");
+  }
+});
+
+// Update professor basic info
+router.put("/professor/:id", async (req, res) => {
+  try {
+    const pool = await poolPromise;
+    const id = parseInt(req.params.id, 10);
+    const { fullName, employmentStatus } = req.body;
+
+    if (!id || !fullName || !employmentStatus) {
+      return res
+        .status(400)
+        .json({ message: "Missing required professor info" });
+    }
+
+    const maxUnits = employmentStatus === "Full-Time" ? 24.0 : 15.0;
+
+    await pool
+      .request()
+      .input("ProfessorID", id)
+      .input("FullName", fullName)
+      .input("EmploymentStatus", employmentStatus)
+      .input("MaxUnits", maxUnits).query(`
+        UPDATE Professors
+        SET FullName = @FullName,
+            EmploymentStatus = @EmploymentStatus,
+            MaxUnits = @MaxUnits
+        WHERE ProfessorID = @ProfessorID
+      `);
+
+    res.json({ success: true, message: "Professor info updated" });
+  } catch (err) {
+    console.error("Error updating professor:", err);
+    res.status(500).send("Server error while updating professor");
+  }
+});
+
+// GET /api/sections?program=BSIT
+router.get("/sections", async (req, res) => {
+  try {
+    const pool = await poolPromise;
+    const program = req.query.program || "BSIT"; // default to BSIT
+
+    const result = await pool.request().input("ProgramCode", program).query(`
+        SELECT SectionID, SectionName, CurriculumID, ProgramCode, YearLevel, Semester
+        FROM Sections
+        WHERE ProgramCode = @ProgramCode
+        ORDER BY YearLevel ASC, Semester ASC, SectionName ASC
+      `);
+
+    res.json(result.recordset);
+  } catch (err) {
+    console.error("Error fetching sections:", err);
+    res.status(500).json({ error: "Internal Server Error" });
   }
 });
 

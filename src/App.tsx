@@ -6,8 +6,12 @@ import CurriculumManagement from './components/CurriculumManagement';
 import CoursesForCurriculum from './components/CoursesForCurriculum';
 import AddCourses from './components/AddCourses';
 import CurriculumList from './components/CurriculumLists';
+import SectionList from './components/SectionLists';
 import Navigation from './components/common/Navigation';
 import AddingCourses from './components/AddingCourses';
+import FacultyLoading from './components/ProfessorManagement';
+import AddProf from './components/AddProfessor';
+import EditProfessorSubjects from './components/EditProfessorCourses';
 import CreateNewCurriculum from './components/CreateNewCurriculum';
 import Dashboard from './components/Dashboard';
 
@@ -30,11 +34,15 @@ const App: React.FC = () => {
       <Routes>
         <Route path="/" element={<Dashboard /* Main Page || Hub */ />} />
         <Route path="/curriculumOverview" element={<CurriculumList /* Listing Existing Curriculums */ />} />
-        <Route path="/curriculum-management"  element={<CurriculumManagement /> /* Planned for later */ } />         
+        <Route path="/curriculum-management" element={<CurriculumManagement /> /* Planned for later || The selection for Programs */ } />         
         <Route path="/curriculum/add" element={<CreateNewCurriculum /* Curriculum Creation, some load are still missing */ />} />
         <Route path="/curriculum/edit/:id" element={<CoursesForCurriculum /* Curricculum Edit, some load are still missing */ />} />
-        <Route path="/curriculum/view/:id" element={<AddCourses /> /* Almost done */ } />        
-        <Route path="/schedule-creation" element={<ScheduleCreation /> /* Incomplete */} /> 
+        <Route path="/curriculum/view/:id" element={<AddCourses /> /* Almost done */ } />              
+        <Route path="/scheduleOverview" element={<SectionList /*  */ /> }  />  
+        <Route path="/schedule/create/:sectionName" element={<ScheduleCreation /> /* Incomplete /section/view/:section.SectionID */} /> 
+        <Route path="/facultyOverview" element={<FacultyLoading /> /*  */} />
+        <Route path="/faculty/add" element={<AddProf />} /* */ />
+        <Route path="/faculty/edit/:id" element={<EditProfessorSubjects /> /* */ } />
         <Route path="/login" element={<Login /> /* Too Bare || Non-functional */} /> 
       </Routes>
     </Router>

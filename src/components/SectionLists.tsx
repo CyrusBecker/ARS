@@ -1,28 +1,9 @@
-import { useLocation } from "react-router-dom";
-import { Snackbar, Alert } from "@mui/material";
-import React, { useEffect, useState } from "react";
-import AddIcon from "@mui/icons-material/Add";
-import ArchiveIcon from "@mui/icons-material/Archive";
-import EditIcon from "@mui/icons-material/Edit";
-import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
-import HomeIcon from "@mui/icons-material/Home";
-import LogoutIcon from "@mui/icons-material/Logout";
-import MeetingRoomIcon from "@mui/icons-material/MeetingRoom";
-import MenuBookIcon from "@mui/icons-material/MenuBook";
-import ScheduleIcon from "@mui/icons-material/Schedule";
-import SchoolIcon from "@mui/icons-material/School";
+import { useEffect, useState } from "react";
 import {
-  AppBar,
-  Avatar,
   Box,
   Button,
-  Drawer,
-  List,
-  ListItem,
-  ListItemButton,
-  ListItemIcon,
-  ListItemText,
   Paper,
+  Snackbar,
   Stack,
   Table,
   TableBody,
@@ -32,32 +13,50 @@ import {
   TableRow,
   Toolbar,
   Typography,
+  Avatar,
+  AppBar,
+  Drawer,
+  List,
+  ListItem,
+  ListItemButton,
+  ListItemIcon,
+  ListItemText,
 } from "@mui/material";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
+import AddIcon from "@mui/icons-material/Add";
+import EditIcon from "@mui/icons-material/Edit";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import HomeIcon from "@mui/icons-material/Home";
+import LogoutIcon from "@mui/icons-material/Logout";
+import MeetingRoomIcon from "@mui/icons-material/MeetingRoom";
+import MenuBookIcon from "@mui/icons-material/MenuBook";
+import ScheduleIcon from "@mui/icons-material/Schedule";
+import SchoolIcon from "@mui/icons-material/School";
+import ArchiveIcon from "@mui/icons-material/Archive";
 
-interface CurriculumRecord {
+interface SectionRecord {
+  SectionID: number;
+  SectionName: string;
   CurriculumID: number;
-  AcademicYear: string;
   ProgramCode: string;
-  ProgramName?: string;
-  Notes: string;
+  YearLevel: number;
+  Semester: number;
 }
 
-const CurriculumList: React.FC = () => {
+const SectionList: React.FC = () => {
   const navigate = useNavigate();
-  const [curriculums, setCurriculums] = useState<CurriculumRecord[]>([]);
   const location = useLocation();
+  const [sections, setSections] = useState<SectionRecord[]>([]);
   const [openSnackbar, setOpenSnackbar] = useState(false);
 
   useEffect(() => {
-    // Checks conditions for snackbar state
     if (location.state?.success) {
       setOpenSnackbar(true);
     }
-    fetch("http://localhost:3000/api/subj/curriculums?program=BSIT")
+    fetch("http://localhost:3000/api/subj/sections?program=BSIT")
       .then((res) => res.json())
-      .then((data) => setCurriculums(data))
-      .catch((err) => console.error("Error fetching curriculums:", err));
+      .then((data) => setSections(data))
+      .catch((err) => console.error("Error fetching sections:", err));
   }, []);
 
   const menuItems = [
@@ -88,6 +87,16 @@ const CurriculumList: React.FC = () => {
     },
     { text: "Sign Out", icon: <LogoutIcon />, path: "/signout" },
   ];
+
+  // Group sections by year and semester
+  const groupedSections = sections.reduce((acc: any, section) => {
+    const key = `Year ${section.YearLevel} - Semester ${section.Semester}`;
+    if (!acc[key]) {
+      acc[key] = [];
+    }
+    acc[key].push(section);
+    return acc;
+  }, {});
 
   return (
     <Box sx={{ display: "flex" }}>
@@ -136,7 +145,7 @@ const CurriculumList: React.FC = () => {
       >
         <List sx={{ mt: 2 }}>
           {menuItems.map((item) => (
-            <React.Fragment key={item.text}>
+            <Box key={item.text}>
               <ListItem disablePadding>
                 <ListItemButton sx={{ pl: 4 }}>
                   <ListItemIcon sx={{ color: "white", minWidth: 40 }}>
@@ -157,14 +166,14 @@ const CurriculumList: React.FC = () => {
                   </ListItemButton>
                 </ListItem>
               ))}
-            </React.Fragment>
+            </Box>
           ))}
         </List>
       </Drawer>
 
       <Box component="main" sx={{ flexGrow: 1, p: 3, mt: "86px", ml: 2 }}>
         <Typography variant="h4" sx={{ mt: 5, mb: 3 }}>
-          Curriculum
+          BSIT Sections
         </Typography>
 
         <Box sx={{ display: "flex", justifyContent: "flex-end", mb: 3 }}>
@@ -172,9 +181,9 @@ const CurriculumList: React.FC = () => {
             variant="contained"
             color="primary"
             startIcon={<AddIcon />}
-            onClick={() => navigate("/curriculum/add")}
+            onClick={() => navigate("/section/add")}
           >
-            Add Curriculum
+            Add Section
           </Button>
         </Box>
 
@@ -182,78 +191,61 @@ const CurriculumList: React.FC = () => {
           <Table>
             <TableHead>
               <TableRow>
-                <TableCell>YEAR</TableCell>
-                <TableCell>PROGRAM CODE</TableCell>
-                <TableCell>PROGRAM NAME</TableCell>
-                <TableCell>NOTES</TableCell>
+                <TableCell>YEAR & SEMESTER</TableCell>
+                <TableCell>SECTION NAME</TableCell>
                 <TableCell>ACTION</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {curriculums.map((row) => (
-                <TableRow key={row.CurriculumID}>
-                  <TableCell>{row.AcademicYear}</TableCell>
-                  <TableCell>{row.ProgramCode}</TableCell>
-                  <TableCell>
-                    {row.ProgramName ||
-                      "Bachelor of Science in Information Technology"}
-                  </TableCell>
-                  <TableCell>{row.Notes}</TableCell>
-                  <TableCell>
-                    <Stack direction="row" spacing={2} justifyContent="center">
-                      <Button
-                        variant="contained"
-                        startIcon={<EditIcon />}
-                        onClick={() =>
-                          navigate(`/curriculum/view/${row.CurriculumID}`)
-                        }
-                        sx={{
-                          bgcolor: "primary.light",
-                          color: "black",
-                          "&:hover": { bgcolor: "primary.light" },
-                        }}
-                      >
-                        View
-                      </Button>
-                      <Button
-                        variant="contained"
-                        startIcon={<EditIcon />}
-                        onClick={() =>
-                          navigate(`/curriculum/edit/${row.CurriculumID}`)
-                        }
-                        sx={{
-                          bgcolor: "primary.main",
-                          color: "white",
-                          "&:hover": { bgcolor: "primary.dark" },
-                        }}
-                      >
-                        Edit
-                      </Button>
-                    </Stack>
-                  </TableCell>
-                </TableRow>
+              {Object.keys(groupedSections).map((group) => (
+                <Box key={group}>
+                  {groupedSections[group].map(
+                    (section: SectionRecord, index: number) => (
+                      <TableRow key={section.SectionID}>
+                        {index === 0 && (
+                          <TableCell
+                            rowSpan={groupedSections[group].length}
+                            sx={{ fontWeight: "bold", verticalAlign: "top" }}
+                          >
+                            {group}
+                          </TableCell>
+                        )}
+                        <TableCell>{section.SectionName}</TableCell>
+                        <TableCell>
+                          <Stack
+                            direction="row"
+                            spacing={2}
+                            justifyContent="center"
+                          >
+                            <Button
+                              variant="contained"
+                              startIcon={<EditIcon />}
+                              onClick={() =>
+                                navigate(
+                                  `/schedule/create/${section.SectionName}`
+                                )
+                              }
+                              sx={{
+                                bgcolor: "primary.light",
+                                color: "black",
+                                "&:hover": { bgcolor: "primary.light" },
+                              }}
+                            >
+                              Create Schedule
+                            </Button>
+                          </Stack>
+                        </TableCell>
+                      </TableRow>
+                    )
+                  )}
+                </Box>
               ))}
             </TableBody>
           </Table>
         </TableContainer>
       </Box>
-
-      <Snackbar
-        open={openSnackbar}
-        autoHideDuration={3000}
-        onClose={() => setOpenSnackbar(false)}
-        anchorOrigin={{ vertical: "top", horizontal: "center" }}
-      >
-        <Alert
-          onClose={() => setOpenSnackbar(false)}
-          severity="success"
-          sx={{ width: "100%" }}
-        >
-          Curriculum created successfully!
-        </Alert>
-      </Snackbar>
     </Box>
   );
 };
 
-export default CurriculumList;
+export default SectionList;
