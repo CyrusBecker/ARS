@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const { poolPromise } = require("../config/db");
+const { sql, poolPromise } = require("../config/db");
 
 /* POST: Save a new schedule block with overlap checking || Just a fallback copy paste.
 router.post("/schedules", async (req, res) => {
@@ -83,9 +83,23 @@ router.post("/schedules", async (req, res) => {
     res.status(500).send("Server error while creating schedule");
   }
 });
+
+Cut from /schedules from AH's side:
+// Update professor's CurrentUnits
+      await pool.request().input("ProfessorID", ProfessorID).query(`
+        UPDATE Professors
+        SET CurrentUnits = (
+            SELECT ISNULL(SUM(sub.Units), 0)
+            FROM Schedules sch
+            JOIN Subjects sub ON sch.SubjectID = sub.SubjectID
+            WHERE sch.ProfessorID = @ProfessorID
+        )
+        WHERE ProfessorID = @ProfessorID;
+      `);
+
 */
 
-// POST: Save a new schedule block with overlap checking || Not working yet.
+// POST: Save a new schedule block with overlap checking || For the AH's side
 router.post("/schedules", async (req, res) => {
   try {
     const pool = await poolPromise;
@@ -93,21 +107,13 @@ router.post("/schedules", async (req, res) => {
 
     for (const entry of scheduleArray) {
       console.log("Incoming schedule entry:", entry);
-      const {
-        SubjectID,
-        SectionID,
-        ProfessorID,
-        RoomID,
-        DayOfWeek,
-        StartTime,
-        EndTime,
-        OccupiedKeys,
-      } = entry;
+      const { SubjectID, SectionID, RoomID, DayOfWeek, StartTime, EndTime } =
+        entry;
 
+      // Check required values (❌ No ProfessorID check)
       if (
         !SubjectID ||
         !SectionID ||
-        !ProfessorID ||
         !RoomID ||
         !DayOfWeek ||
         !StartTime ||
@@ -116,7 +122,6 @@ router.post("/schedules", async (req, res) => {
         console.log("❌ Missing required data:", {
           SubjectID,
           SectionID,
-          ProfessorID,
           RoomID,
           DayOfWeek,
           StartTime,
@@ -131,17 +136,15 @@ router.post("/schedules", async (req, res) => {
         .input("StartTime", StartTime)
         .input("EndTime", EndTime)
         .input("SectionID", SectionID)
-        .input("ProfessorID", ProfessorID)
         .input("RoomID", RoomID).query(`
           SELECT * FROM Schedules
           WHERE DayOfWeek = @DayOfWeek
             AND (
-              (SectionID = @SectionID)
-              OR (ProfessorID = @ProfessorID)
-              OR (RoomID = @RoomID)
+              SectionID = @SectionID
+              OR RoomID = @RoomID
             )
             AND (
-              (StartTime < @EndTime AND EndTime > @StartTime)
+              StartTime < @EndTime AND EndTime > @StartTime
             )
         `);
 
@@ -156,35 +159,24 @@ router.post("/schedules", async (req, res) => {
         .request()
         .input("SubjectID", SubjectID)
         .input("SectionID", SectionID)
-        .input("ProfessorID", ProfessorID)
         .input("RoomID", RoomID)
         .input("DayOfWeek", DayOfWeek)
         .input("StartTime", StartTime)
-        .input("EndTime", EndTime)
-        .input("OccupiedKeys", OccupiedKeys || "").query(`
+        .input("EndTime", EndTime).query(`
           INSERT INTO Schedules 
-            (SubjectID, SectionID, ProfessorID, RoomID, DayOfWeek, StartTime, EndTime, OccupiedKeys)
+            (SubjectID, SectionID, RoomID, DayOfWeek, StartTime, EndTime)
           VALUES 
-            (@SubjectID, @SectionID, @ProfessorID, @RoomID, @DayOfWeek, @StartTime, @EndTime, @OccupiedKeys)
+            (@SubjectID, @SectionID, @RoomID, @DayOfWeek, @StartTime, @EndTime)
         `);
-
-      // Update professor's CurrentUnits
-      await pool.request().input("ProfessorID", ProfessorID).query(`
-        UPDATE Professors
-        SET CurrentUnits = (
-            SELECT ISNULL(SUM(sub.Units), 0)
-            FROM Schedules sch
-            JOIN Subjects sub ON sch.SubjectID = sub.SubjectID
-            WHERE sch.ProfessorID = @ProfessorID
-        )
-        WHERE ProfessorID = @ProfessorID;
-      `);
     }
 
     res.json({ success: true, message: "All schedules saved successfully." });
   } catch (err) {
     console.error("Error creating schedule:", err);
-    res.status(500).send("Server error while creating schedule.");
+    res.status(500).send({
+      message: "Server error while creating schedule.",
+      error: err.message,
+    });
   }
 });
 
@@ -209,15 +201,14 @@ router.get("/schedules", async (req, res) => {
   }
 });
 
-// GET: Fetch all subjects
-router.get("/subjects/:sectionName", async (req, res) => {
-  const { sectionName } = req.params;
+// GET: Fetch all subjects -- SHOULD BE UPDATED TO INCLUDE FILTERING THE SUBJECTS ACCORDING TO THE SECTION'S YEAR AND SEMESTER
+router.get("/subjects/:sectionId", async (req, res) => {
+  const { sectionId } = req.params;
   //console.log("Received sectionName:", sectionName);
 
   try {
     const pool = await poolPromise;
-    const result = await pool.request().input("SectionName", sectionName)
-      .query(`
+    const result = await pool.request().input("SectionID", sectionId).query(`
         SELECT 
           sec.SectionID,
           sec.SectionName,
@@ -234,9 +225,10 @@ router.get("/subjects/:sectionName", async (req, res) => {
         JOIN Curriculums c ON sec.CurriculumID = c.CurriculumID
         JOIN CurriculumSubjects cs ON cs.CurriculumID = c.CurriculumID
         JOIN Subjects s ON cs.SubjectID = s.SubjectID
-        WHERE sec.SectionName = @SectionName
+        WHERE sec.SectionID = @SectionID
       `); // Update the Where line to this WHERE sec.SectionName = @SectionName AND IsArchived = 0
 
+    // console.log("Queried results: ", result.recordset);
     res.json(result.recordset);
   } catch (err) {
     console.error("Error fetching section-specific subjects:", err);
@@ -275,6 +267,33 @@ router.get("/rooms", async (req, res) => {
   } catch (err) {
     console.error("Error fetching rooms:", err);
     res.status(500).send("Server error while fetching rooms");
+  }
+});
+
+// GET: Fetch rooms already used during a given day and time range
+router.get("/rooms/occupied", async (req, res) => {
+  const { day, start, end } = req.query;
+  try {
+    const pool = await poolPromise;
+
+    const result = await pool
+      .request()
+      .input("day", day)
+      .input("start", start)
+      .input("end", end).query(`
+        SELECT RoomName
+        FROM Schedules
+        WHERE Day = @day
+          AND (
+            (StartTime < @end AND EndTime > @start)
+          )
+      `);
+
+    const usedRooms = result.recordset.map((row) => row.RoomName);
+    res.json(usedRooms);
+  } catch (err) {
+    console.error("Error fetching occupied rooms:", err);
+    res.status(500).send("Server error");
   }
 });
 
@@ -353,30 +372,54 @@ router.get("/professor-subjects", async (req, res) => {
   }
 });
 
-// Retreiving the data of saved schedules, needs an update to use the column OccupiedKeys VARCHAR(MAX) from Schedules table
+// Retreiving the data of saved schedules
 
-// GET: Fetch schedules by section
-router.get("/schedules/section/:section", async (req, res) => {
+// GET: Fetch schedules by sectionId
+router.get("/schedules/section/:sectionId", async (req, res) => {
+  const sectionId = req.params.sectionId;
+  console.log("Requested section ID:", sectionId);
   try {
     const pool = await poolPromise;
-    const section = req.params.section;
-
-    const result = await pool.request().input("Section", section).query(`
-        SELECT s.*, 
-               subj.CourseCode, subj.CourseName,
-               prof.FullName AS ProfessorName,
-               r.RoomName
+    // Add this to query: s.LectureHours, s.LabHours,
+    const result = await pool.request().input("SectionID", sql.Int, sectionId)
+      .query(`
+        SELECT 
+          s.ScheduleID,
+          s.SubjectID,
+          s.SectionID,
+          s.RoomID,
+          s.ProfessorID,
+          s.DayOfWeek,
+          s.StartTime,
+          s.EndTime,
+          subj.CourseCode,
+          subj.CourseName,
+          subj.LectureHours,
+          subj.LabHours,
+          subj.isLab,
+          prof.FullName,
+          r.RoomName,
+          sec.SectionName
         FROM Schedules s
-        JOIN Subjects subj ON s.SubjectID = subj.SubjectID
-        JOIN Professors prof ON s.ProfessorID = prof.ProfessorID
-        JOIN Rooms r ON s.RoomID = r.RoomID
-        WHERE s.Section = @Section
+        LEFT JOIN Subjects subj ON s.SubjectID = subj.SubjectID
+        LEFT JOIN Professors prof ON s.ProfessorID = prof.ProfessorID
+        LEFT JOIN Rooms r ON s.RoomID = r.RoomID
+        LEFT JOIN Sections sec ON s.SectionID = sec.SectionID
+        WHERE s.SectionID = @SectionID;
       `);
+
+    console.log("Query result:", result.recordset);
+
+    if (result.recordset.length === 0) {
+      console.log("No schedules found for section ID:", sectionId);
+    }
 
     res.json(result.recordset);
   } catch (err) {
     console.error("Error fetching section schedules:", err);
-    res.status(500).send("Server error while fetching section schedules");
+    res
+      .status(500)
+      .send(`Server error while fetching section schedules:  ${err.message}`);
   }
 });
 

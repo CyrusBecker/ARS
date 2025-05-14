@@ -1,20 +1,16 @@
 import React, { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { JSX } from "@emotion/react/jsx-runtime";
 
 interface DroppedSubject {
-  id: number;
-  subjectId: number; // NEW: the actual SubjectID from DB
+  id: string;
+  subjectId: number;
   name: string;
   hours: number;
   units: number;
-  professor: {
-    id: number;
-    name: string;
-  } | null;
   room: string;
-  sectionId: number;
-  academicYear: string;
+  sectionID: number;
   semester: number;
   yearLevel: number;
   isLab: boolean;
@@ -28,18 +24,10 @@ interface Room {
   Notes?: string;
 }
 
-interface ProfessorData {
-  ProfessorID: number;
-  FullName: string;
-  MaxUnits: number;
-  CurrentUnits: number;
-}
-
-interface ProfessorSubjectMap {
-  ProfessorID: number;
-  SubjectID: number;
-  FullName: string;
-  CourseCode: string;
+interface HoverHighlight {
+  day: string;
+  startIndex: number;
+  length: number;
 }
 
 const days = [
@@ -82,28 +70,32 @@ const timeSlots = [
 ];
 
 const ScheduleCreation: React.FC = () => {
+  const navigate = useNavigate();
   const [schedule, setSchedule] = useState<
     Record<string, { subject: DroppedSubject; rowSpan: number }>
   >({});
   const [subjects, setSubjects] = useState<DroppedSubject[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
-  const [professors, setProfessors] = useState<ProfessorData[]>([]);
-  const [professorSubjects, setProfessorSubjects] = useState<
-    ProfessorSubjectMap[]
-  >([]);
-  const { sectionName } = useParams();
-  // console.log("Section name from URL:", sectionName);
+  const [draggedSubject, setDraggedSubject] = useState<DroppedSubject | null>(
+    null
+  );
+  const [scheduledSubjects, setScheduledSubjects] = useState<string[]>([]);
+  const [hoverHighlight, setHoverHighlight] = useState<HoverHighlight | null>(
+    null
+  );
+  const { sectionId } = useParams();
+  // console.log("SectionID from URL:", sectionId);
 
   useEffect(() => {
     const fetchSubjects = async () => {
-      if (!sectionName) {
+      if (!sectionId) {
         console.warn("No sectionName found");
         return;
       }
 
       try {
         const response = await fetch(
-          `http://localhost:3000/api/sched/subjects/${sectionName}`
+          `http://localhost:3000/api/sched/subjects/${sectionId}`
         );
 
         const data = await response.json();
@@ -122,10 +114,8 @@ const ScheduleCreation: React.FC = () => {
               name: `${subject.CourseCode} - ${subject.CourseName} (Lecture)`,
               hours: subject.LectureHours,
               units: subject.Units,
-              professor: "",
               room: "",
-              sectionId: subject.SectionId,
-              academicYear: "",
+              sectionID: subject.SectionID,
               semester: subject.Semester,
               yearLevel: subject.YearLevel,
               isLab: false,
@@ -139,10 +129,8 @@ const ScheduleCreation: React.FC = () => {
               name: `${subject.CourseCode} - ${subject.CourseName} (Lab)`,
               hours: subject.LabHours,
               units: subject.Units,
-              professor: "",
               room: "",
-              sectionId: subject.SectionId,
-              academicYear: "",
+              sectionID: subject.SectionID,
               semester: subject.Semester,
               yearLevel: subject.YearLevel,
               isLab: true,
@@ -153,6 +141,7 @@ const ScheduleCreation: React.FC = () => {
         });
 
         setSubjects(transformed);
+        console.log("Subjects: ", transformed);
       } catch (err) {
         console.error("Failed to load subjects:", err);
       }
@@ -165,45 +154,21 @@ const ScheduleCreation: React.FC = () => {
         }
 
         const roomData = await response.json();
-        console.log("Rooms fetched:", roomData);
+        // console.log("Rooms fetched:", roomData);
         setRooms(roomData);
       } catch (err) {
         console.error("Failed to fetch rooms:", err);
       }
     };
-    const fetchProfessors = async () => {
-      try {
-        const response = await fetch(
-          "http://localhost:3000/api/sched/professors"
-        );
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        const data = await response.json();
-        console.log("Professors fetched:", data);
-        setProfessors(data);
-      } catch (err) {
-        console.error("Failed to fetch professors:", err);
-      }
-    };
-    const fetchProfessorSubjects = async () => {
-      try {
-        const response = await fetch(
-          "http://localhost:3000/api/sched/professor-subjects"
-        );
-        if (!response.ok)
-          throw new Error(`HTTP error! status: ${response.status}`);
-        const data = await response.json();
-        setProfessorSubjects(data);
-      } catch (err) {
-        console.error("Failed to fetch professor-subject mappings:", err);
-      }
+    const handleDragEnd = () => {
+      setHoverHighlight(null);
+      setDraggedSubject(null);
     };
 
     fetchRooms();
     fetchSubjects();
-    fetchProfessors();
-    fetchProfessorSubjects();
+    window.addEventListener("dragend", handleDragEnd);
+    return () => window.removeEventListener("dragend", handleDragEnd);
   }, []);
 
   const handleSaveSchedule = async () => {
@@ -246,19 +211,13 @@ const ScheduleCreation: React.FC = () => {
         const startTime = timeIndexDBTime[startIndex];
         const endTime = timeIndexDBTime[startIndex + duration];
 
-        const occupiedKeys = Array.from({ length: duration }, (_, i) => {
-          return `${day}_${startIndex + i}`;
-        });
-
         return {
           SubjectID: cell.subject.subjectId,
-          SectionID: cell.subject.sectionId,
-          ProfessorID: cell.subject.professor?.id,
+          SectionID: cell.subject.sectionID,
           RoomID: rooms.find((r) => r.RoomName === cell.subject.room)?.RoomID,
           DayOfWeek: day,
           StartTime: startTime,
           EndTime: endTime,
-          OccupiedKeys: occupiedKeys.join(","),
         };
       });
 
@@ -281,44 +240,110 @@ const ScheduleCreation: React.FC = () => {
 
       if (!response.ok) throw new Error("Failed to save schedule.");
       alert("Schedule saved successfully!");
+      navigate(`/scheduleOverview`);
     } catch (error) {
-      console.error(error);
+      console.error("Error saving schedule:", error);
       alert("Error saving schedule.");
     }
   };
 
-  const onDragStart = (e: React.DragEvent, subject: DroppedSubject) => {
-    e.dataTransfer.setData("subject", JSON.stringify(subject));
+  const onDragStart = (
+    e: React.DragEvent,
+    subject: DroppedSubject,
+    origin?: { day: string; timeIndex: number }
+  ) => {
+    const dragData = {
+      ...subject,
+      sourcePosition: origin || null,
+    };
+    e.dataTransfer.setData("subject", JSON.stringify(dragData)); // Carrying the data
+    setDraggedSubject(subject); // Tracking subjject for hover highlight
   };
 
   const onDrop = (e: React.DragEvent, day: string, timeIndex: number) => {
     e.preventDefault();
     const data = e.dataTransfer.getData("subject");
-    const subject = JSON.parse(data) as DroppedSubject;
-    const key = `${day}_${timeIndex}`;
+    const subject = JSON.parse(data) as DroppedSubject & {
+      sourcePosition?: { day: string; timeIndex: number } | null;
+    };
 
-    const hours = subject.hours;
-    const subjectSlots = Math.round(hours * 2);
+    const subjectSlots = Math.round(subject.hours * 2);
 
+    // Track scheduled subject
+    setScheduledSubjects((prev) => {
+      // Previous sole line prev.filter((id) => id !== cell.subject.id)
+      const alreadyScheduled = prev.includes(subject.id);
+      console.log("Currently scheduled:", prev);
+      console.log("Trying to schedule:", subject.id);
+      if (alreadyScheduled) {
+        console.log(`Subject ${subject.id} is already scheduled.`);
+        return prev;
+      } else {
+        const updated = [...prev, subject.id];
+        console.log(`Subject ${subject.id} added. New list:`, updated);
+        return updated;
+      }
+    });
+
+    // Checking for overlap
     for (let i = 0; i < subjectSlots; i++) {
       const checkKey = `${day}_${timeIndex + i}`;
       if (schedule[checkKey]) {
-        alert("Time slot is already occupied!");
+        alert(
+          "Slot Unavailable!\nEither the slot or its allocation range is occupied!"
+        );
         return;
       }
     }
 
     const newSchedule = { ...schedule };
-    newSchedule[key] = { subject, rowSpan: subjectSlots };
-    for (let i = 1; i < subjectSlots; i++) {
-      newSchedule[`${day}_${timeIndex + i}`] = { subject, rowSpan: 0 }; // Mark as covered
+
+    // If plotted down and moved, clear old position
+    if (subject.sourcePosition) {
+      const { day: oldDay, timeIndex: oldTimeIndex } = subject.sourcePosition;
+      // const oldKey = `${oldDay}_${oldTimeIndex}`; || No uses found yet.
+      const oldSubjectSlots = Math.round(subject.hours * 2);
+
+      for (let i = 0; i < oldSubjectSlots; i++) {
+        delete newSchedule[`${oldDay}_${oldTimeIndex + i}`];
+      }
     }
 
+    // Dropping/plotting the subject
+    const newKey = `${day}_${timeIndex}`;
+    newSchedule[newKey] = { subject, rowSpan: subjectSlots };
+    for (let i = 1; i < subjectSlots; i++) {
+      newSchedule[`${day}_${timeIndex + i}`] = { subject, rowSpan: 0 };
+    }
+
+    setDraggedSubject(null);
     setSchedule(newSchedule);
+    setHoverHighlight(null);
   };
 
-  const onDragOver = (e: React.DragEvent) => {
+  const onDragOver = (
+    e: React.DragEvent,
+    day: string,
+    timeIndex: number,
+    hours?: number
+  ) => {
     e.preventDefault();
+    if (hours) {
+      setHoverHighlight({
+        day,
+        startIndex: timeIndex,
+        length: Math.round(hours * 2),
+      });
+    }
+  };
+
+  const onDragLeave = () => {
+    setHoverHighlight(null);
+  };
+
+  const onDragHL = () => {
+    setDraggedSubject(null);
+    setHoverHighlight(null);
   };
 
   const updateRoom = (subjectId: string | number, newRoom: string) => {
@@ -339,68 +364,15 @@ const ScheduleCreation: React.FC = () => {
     });
   };
 
-  const updateProfessor = (subjectId: string | number, professorId: number) => {
-    const selected = professors.find((p) => p.ProfessorID === professorId);
-    if (!selected) return;
+  const removeSubject = (day: string, timeIndex: number, hours: number) => {
+    const subjectSlots = Math.round(hours * 2);
+    const updatedSchedule = { ...schedule };
 
-    setSchedule((prev) => {
-      const updated = { ...prev };
-      for (const key in updated) {
-        if (updated[key].subject.id === subjectId) {
-          updated[key] = {
-            ...updated[key],
-            subject: {
-              ...updated[key].subject,
-              professor: { id: selected.ProfessorID, name: selected.FullName },
-            },
-          };
-        }
-      }
-      return updated;
-    });
-  };
-
-  const renderProfessorOptions = (subject: DroppedSubject) => {
-    const available: JSX.Element[] = [];
-    const full: JSX.Element[] = [];
-
-    const matchingProfessors = professorSubjects.filter(
-      (ps) => ps.SubjectID === subject.subjectId
-    );
-
-    if (matchingProfessors.length === 0) {
-      return <option disabled>No professors qualified</option>;
+    for (let i = 0; i < subjectSlots; i++) {
+      delete updatedSchedule[`${day}_${timeIndex + i}`];
     }
 
-    matchingProfessors.forEach((ps) => {
-      const prof = professors.find((p) => p.ProfessorID === ps.ProfessorID);
-      if (!prof) return;
-
-      const exceedsUnits = prof.CurrentUnits + subject.units > prof.MaxUnits;
-
-      const option = (
-        <option
-          key={prof.ProfessorID}
-          value={prof.ProfessorID}
-          disabled={exceedsUnits}
-        >
-          {prof.FullName} ({prof.CurrentUnits}/{prof.MaxUnits} units)
-          {exceedsUnits ? " ❌ Max Load" : ""}
-        </option>
-      );
-
-      if (exceedsUnits) full.push(option);
-      else available.push(option);
-    });
-
-    return (
-      <>
-        {available.length > 0 && (
-          <optgroup label="Available">{available}</optgroup>
-        )}
-        {full.length > 0 && <optgroup label="Fully Loaded">{full}</optgroup>}
-      </>
-    );
+    setSchedule(updatedSchedule);
   };
 
   return (
@@ -417,23 +389,34 @@ const ScheduleCreation: React.FC = () => {
         {subjects.length === 0 ? (
           <p>Loading subjects...</p>
         ) : (
-          subjects.map((subj) => (
-            <div
-              key={subj.id}
-              draggable
-              onDragStart={(e) => onDragStart(e, subj)}
-              style={{
-                border: "1px solid #aaa",
-                padding: "10px",
-                marginBottom: "10px",
-                backgroundColor: "#e6f7ff",
-                cursor: "grab",
-              }}
-            >
-              <strong>{subj.name}</strong> <br />
-              {subj.hours * 1} hrs
-            </div>
-          ))
+          subjects.map((subj) => {
+            const isScheduled = scheduledSubjects.includes(subj.id);
+            return (
+              <div
+                key={subj.id}
+                draggable={!isScheduled}
+                onDragStart={(e) => !isScheduled && onDragStart(e, subj)}
+                style={{
+                  border: "1px solid #aaa",
+                  padding: "10px",
+                  marginBottom: "10px",
+                  backgroundColor: isScheduled
+                    ? "#f0f0f0"
+                    : subj.isLab
+                    ? "#fff0f6"
+                    : "#e6f7ff",
+                  cursor: isScheduled ? "not-allowed" : "grab",
+                  opacity: isScheduled ? 0.5 : 1,
+                  borderRadius: "6px",
+                  overflow: "hidden",
+                }}
+              >
+                <strong>{subj.name}</strong> <br />
+                {subj.hours} hr{subj.hours > 1 ? "s" : ""} (
+                {subj.isLab ? "Lab" : "Lec"})
+              </div>
+            );
+          })
         )}
       </div>
 
@@ -455,7 +438,7 @@ const ScheduleCreation: React.FC = () => {
           <tbody>
             {timeSlots.map((time, rowIndex) => (
               <tr key={rowIndex}>
-                <td>{time}</td>
+                <td style={{ fontSize: "0.75rem", padding: "4px" }}>{time}</td>
                 {days.map((day) => {
                   const key = `${day}_${rowIndex}`;
                   const cell = schedule[key];
@@ -465,19 +448,44 @@ const ScheduleCreation: React.FC = () => {
                     return (
                       <td
                         key={key}
+                        onDragOver={(e) =>
+                          onDragOver(e, day, rowIndex, draggedSubject?.hours)
+                        }
+                        onDragLeave={onDragLeave}
+                        onDrop={(e) => onDrop(e, day, rowIndex)}
                         rowSpan={cell.rowSpan}
-                        style={{ backgroundColor: "#d0f0d0" }}
+                        style={{
+                          backgroundColor: cell.subject.isLab
+                            ? "#ffe6cc" // Example lab color (light orange)
+                            : "#d0f0d0", // Example lecture color (light green)
+                        }}
                       >
-                        <div>
+                        <div
+                          draggable
+                          onDragStart={(e) =>
+                            onDragStart(e, cell.subject, {
+                              day,
+                              timeIndex: rowIndex,
+                            })
+                          }
+                          onDragEnd={onDragHL}
+                          style={{
+                            cursor: "grab",
+                            backgroundColor: "#transparent",
+                            borderRadius: "6px",
+                            padding: "6px",
+                          }}
+                        >
                           <strong>{cell.subject.name}</strong>
                           <br />
-                          Room: {/*cell.subject.room*/}
+                          Room:
                           <select
                             value={cell.subject.room}
                             onChange={(e) =>
                               updateRoom(cell.subject.id, e.target.value)
                             }
                           >
+                            <option value="" disabled selected hidden></option>
                             {rooms
                               .filter(
                                 (room) =>
@@ -494,20 +502,24 @@ const ScheduleCreation: React.FC = () => {
                               ))}
                           </select>
                           <br />
-                          Prof: {/*cell.subject.professor?.name*/}
-                          <select
-                            value={cell.subject.professor?.id ?? ""}
-                            onChange={(e) =>
-                              updateProfessor(
-                                cell.subject.id,
-                                parseInt(e.target.value)
-                              )
-                            }
-                          >
-                            {renderProfessorOptions(cell.subject)}
-                          </select>
+                          {cell.subject.hours} hrs
                           <br />
-                          {cell.subject.hours * 1} hrs
+                          <button
+                            onClick={() =>
+                              removeSubject(day, rowIndex, cell.subject.hours)
+                            }
+                            style={{
+                              marginTop: "4px",
+                              fontSize: "0.8rem",
+                              backgroundColor: "tomato",
+                              color: "white",
+                              border: "none",
+                              borderRadius: "4px",
+                              padding: "2px 6px",
+                            }}
+                          >
+                            Remove
+                          </button>
                         </div>
                       </td>
                     );
@@ -515,9 +527,22 @@ const ScheduleCreation: React.FC = () => {
                     return (
                       <td
                         key={key}
-                        onDragOver={onDragOver}
+                        onDragOver={(e) =>
+                          onDragOver(e, day, rowIndex, draggedSubject?.hours)
+                        }
                         onDrop={(e) => onDrop(e, day, rowIndex)}
-                        style={{ height: "40px", minWidth: "100px" }}
+                        style={{
+                          height: "40px",
+                          minWidth: "100px",
+                          backgroundColor:
+                            hoverHighlight &&
+                            hoverHighlight.day === day &&
+                            rowIndex >= hoverHighlight.startIndex &&
+                            rowIndex <
+                              hoverHighlight.startIndex + hoverHighlight.length
+                              ? "#cbe4ff"
+                              : "white",
+                        }}
                       />
                     );
                   }

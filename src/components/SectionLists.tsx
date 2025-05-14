@@ -41,6 +41,7 @@ interface SectionRecord {
   ProgramCode: string;
   YearLevel: number;
   Semester: number;
+  ScheduleStatus: string;
 }
 
 const SectionList: React.FC = () => {
@@ -88,7 +89,7 @@ const SectionList: React.FC = () => {
     { text: "Sign Out", icon: <LogoutIcon />, path: "/signout" },
   ];
 
-  // Group sections by year and semester
+  // Grouping the sections by year and semester
   const groupedSections = sections.reduce((acc: any, section) => {
     const key = `Year ${section.YearLevel} - Semester ${section.Semester}`;
     if (!acc[key]) {
@@ -193,53 +194,85 @@ const SectionList: React.FC = () => {
               <TableRow>
                 <TableCell>YEAR & SEMESTER</TableCell>
                 <TableCell>SECTION NAME</TableCell>
-                <TableCell>ACTION</TableCell>
+                <TableCell>STATUS</TableCell>
+                <TableCell>ACTIONS</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {Object.keys(groupedSections).map((group) => (
-                <Box key={group}>
-                  {groupedSections[group].map(
-                    (section: SectionRecord, index: number) => (
-                      <TableRow key={section.SectionID}>
-                        {index === 0 && (
-                          <TableCell
-                            rowSpan={groupedSections[group].length}
-                            sx={{ fontWeight: "bold", verticalAlign: "top" }}
-                          >
-                            {group}
-                          </TableCell>
-                        )}
-                        <TableCell>{section.SectionName}</TableCell>
-                        <TableCell>
-                          <Stack
-                            direction="row"
-                            spacing={2}
-                            justifyContent="center"
-                          >
-                            <Button
-                              variant="contained"
-                              startIcon={<EditIcon />}
-                              onClick={() =>
-                                navigate(
-                                  `/schedule/create/${section.SectionName}`
-                                )
-                              }
-                              sx={{
-                                bgcolor: "primary.light",
-                                color: "black",
-                                "&:hover": { bgcolor: "primary.light" },
-                              }}
-                            >
-                              Create Schedule
-                            </Button>
-                          </Stack>
+              {Object.keys(groupedSections).map((group) =>
+                groupedSections[group].map(
+                  (section: SectionRecord, index: number) => (
+                    <TableRow key={section.SectionID}>
+                      {index === 0 && (
+                        <TableCell
+                          rowSpan={groupedSections[group].length}
+                          sx={{ fontWeight: "bold", verticalAlign: "top" }}
+                        >
+                          {group}
                         </TableCell>
-                      </TableRow>
-                    )
-                  )}
-                </Box>
-              ))}
+                      )}
+                      <TableCell>{section.SectionName}</TableCell>
+                      <TableCell>
+                        {section.ScheduleStatus === "No Schedule" &&
+                          "No Schedule"}
+                        {section.ScheduleStatus === "Partially Completed" &&
+                          "Partially Completed"}
+                        {section.ScheduleStatus === "Completed" && "Completed"}
+                      </TableCell>
+                      <TableCell>
+                        <Stack
+                          direction="row"
+                          spacing={2}
+                          justifyContent="center"
+                        >
+                          <Button
+                            variant="contained" // outlined, contained
+                            startIcon={<EditIcon />}
+                            onClick={() =>
+                              navigate(`/schedule/create/${section.SectionID}`)
+                            }
+                            disabled={
+                              section.ScheduleStatus ===
+                                "Partially Completed" ||
+                              section.ScheduleStatus === "Completed"
+                            }
+                            sx={{
+                              bgcolor: "primary.light",
+                              color: "black",
+                              "&:hover": { bgcolor: "primary.light" },
+                            }}
+                          >
+                            Create Schedule
+                          </Button>
+                          <Button
+                            variant="contained"
+                            onClick={() =>
+                              navigate(`/schedule/view/${section.SectionID}`)
+                            }
+                            sx={{
+                              bgcolor: "primary.light",
+                              color: "black",
+                              "&:hover": { bgcolor: "primary.light" },
+                            }}
+                          >
+                            View
+                          </Button>
+                          <Button
+                            disabled
+                            sx={{
+                              bgcolor: "primary.light",
+                              color: "black",
+                              "&:hover": { bgcolor: "primary.light" },
+                            }}
+                          >
+                            Archive
+                          </Button>
+                        </Stack>
+                      </TableCell>
+                    </TableRow>
+                  )
+                )
+              )}
             </TableBody>
           </Table>
         </TableContainer>

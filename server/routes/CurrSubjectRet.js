@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const { poolPromise } = require("../config/db");
+const { sql, poolPromise } = require("../config/db");
 
 // POST to create a new curriculum
 router.post("/curriculums", async (req, res) => {
@@ -484,16 +484,33 @@ router.put("/professor/:id", async (req, res) => {
 
 // GET /api/sections?program=BSIT
 router.get("/sections", async (req, res) => {
+  // console.log("🔥 /api/subj/sections route hit with query:", req.query);
   try {
     const pool = await poolPromise;
     const program = req.query.program || "BSIT"; // default to BSIT
 
     const result = await pool.request().input("ProgramCode", program).query(`
-        SELECT SectionID, SectionName, CurriculumID, ProgramCode, YearLevel, Semester
-        FROM Sections
-        WHERE ProgramCode = @ProgramCode
-        ORDER BY YearLevel ASC, Semester ASC, SectionName ASC
-      `);
+      SELECT 
+        s.SectionID, 
+        s.SectionName, 
+        s.CurriculumID, 
+        s.ProgramCode, 
+        s.YearLevel, 
+        s.Semester,
+        CASE 
+          WHEN NOT EXISTS (
+            SELECT 1 FROM Schedules sc WHERE sc.SectionID = s.SectionID
+          ) THEN 'No Schedule'
+          WHEN EXISTS (
+            SELECT 1 FROM Schedules sc 
+            WHERE sc.SectionID = s.SectionID AND sc.ProfessorID IS NULL
+          ) THEN 'Partially Completed'
+          ELSE 'Completed'
+        END AS ScheduleStatus
+      FROM Sections s
+      WHERE s.ProgramCode = @ProgramCode
+      ORDER BY s.YearLevel ASC, s.Semester ASC, s.SectionName ASC;
+    `);
 
     res.json(result.recordset);
   } catch (err) {

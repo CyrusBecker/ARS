@@ -1,7 +1,8 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Login from './components/Login';
-import ScheduleCreation from './components/ScheduleCreation';
+import ScheduleCreation from './components/ScheduleCreation'; // AH Side
+import LoadSectSched from './components/LoadSectSched'; // Loading the Section's Side
 import CurriculumManagement from './components/CurriculumManagement';
 import CoursesForCurriculum from './components/CoursesForCurriculum';
 import AddCourses from './components/AddCourses';
@@ -39,10 +40,11 @@ const App: React.FC = () => {
         <Route path="/curriculum/edit/:id" element={<CoursesForCurriculum /* Curricculum Edit, some load are still missing */ />} />
         <Route path="/curriculum/view/:id" element={<AddCourses /> /* Almost done */ } />              
         <Route path="/scheduleOverview" element={<SectionList /*  */ /> }  />  
-        <Route path="/schedule/create/:sectionName" element={<ScheduleCreation /> /* Incomplete /section/view/:section.SectionID */} /> 
+        <Route path="/schedule/view/:sectionId" element={<LoadSectSched /> /*  */ } />
+        <Route path="/schedule/create/:sectionId" element={<ScheduleCreation /> /*  */} /> 
         <Route path="/facultyOverview" element={<FacultyLoading /> /*  */} />
-        <Route path="/faculty/add" element={<AddProf />} /* */ />
-        <Route path="/faculty/edit/:id" element={<EditProfessorSubjects /> /* */ } />
+        <Route path="/faculty/add" element={<AddProf />} /*  */ />
+        <Route path="/faculty/edit/:id" element={<EditProfessorSubjects /> /*  */ } />
         <Route path="/login" element={<Login /> /* Too Bare || Non-functional */} /> 
       </Routes>
     </Router>
