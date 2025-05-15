@@ -21,20 +21,42 @@ interface ScheduleEntry {
 }
 
 const days = [
-  "Monday", "Tuesday", "Wednesday",
-  "Thursday", "Friday", "Saturday",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
 ];
 
 const timeSlots = [
-  "7:00 AM - 7:30 AM", "7:30 AM - 8:00 AM", "8:00 AM - 8:30 AM",
-  "8:30 AM - 9:00 AM", "9:00 AM - 9:30 AM", "9:30 AM - 10:00 AM",
-  "10:00 AM - 10:30 AM", "10:30 AM - 11:00 AM", "11:00 AM - 11:30 AM",
-  "11:30 AM - 12:00 PM", "12:00 PM - 12:30 PM", "12:30 PM - 1:00 PM",
-  "1:00 PM - 1:30 PM", "1:30 PM - 2:00 PM", "2:00 PM - 2:30 PM",
-  "2:30 PM - 3:00 PM", "3:00 PM - 3:30 PM", "3:30 PM - 4:00 PM",
-  "4:00 PM - 4:30 PM", "4:30 PM - 5:00 PM", "5:00 PM - 5:30 PM", 
-  "5:30 PM - 6:00 PM", "6:00 PM - 6:30 PM", "6:30 PM - 7:00 PM",
-  "7:00 PM - 7:30 PM", "7:30 PM - 8:00 PM", "8:00 PM - 8:30 PM",
+  "7:00 AM - 7:30 AM",
+  "7:30 AM - 8:00 AM",
+  "8:00 AM - 8:30 AM",
+  "8:30 AM - 9:00 AM",
+  "9:00 AM - 9:30 AM",
+  "9:30 AM - 10:00 AM",
+  "10:00 AM - 10:30 AM",
+  "10:30 AM - 11:00 AM",
+  "11:00 AM - 11:30 AM",
+  "11:30 AM - 12:00 PM",
+  "12:00 PM - 12:30 PM",
+  "12:30 PM - 1:00 PM",
+  "1:00 PM - 1:30 PM",
+  "1:30 PM - 2:00 PM",
+  "2:00 PM - 2:30 PM",
+  "2:30 PM - 3:00 PM",
+  "3:00 PM - 3:30 PM",
+  "3:30 PM - 4:00 PM",
+  "4:00 PM - 4:30 PM",
+  "4:30 PM - 5:00 PM",
+  "5:00 PM - 5:30 PM",
+  "5:30 PM - 6:00 PM",
+  "6:00 PM - 6:30 PM",
+  "6:30 PM - 7:00 PM",
+  "7:00 PM - 7:30 PM",
+  "7:30 PM - 8:00 PM",
+  "8:00 PM - 8:30 PM",
 ];
 
 const LoadSectSched: React.FC = () => {
@@ -74,79 +96,97 @@ const LoadSectSched: React.FC = () => {
     fetchSchedules();
   }, [sectionId]);
 
-  // Function to format time in HH:mm AM/PM
-  const formatTime = (isoTime: string) => {
-    const date = new Date(isoTime);
-    const options: Intl.DateTimeFormatOptions = {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: true,
-    };
-    return new Intl.DateTimeFormat("en-US", options).format(date);
+  // Helper: Extract "HH:mm" from ISO or time string
+  const getHHMM = (isoOrTime: string) => {
+    // If ISO string, parse as date
+    const date = new Date(isoOrTime);
+    if (!isNaN(date.getTime())) {
+      return date.toISOString().substr(11, 5); // "HH:mm"
+    }
+    // If already a time string, try to extract "HH:mm"
+    const match = isoOrTime.match(/(\d{1,2}):(\d{2})/);
+    if (match) {
+      return `${match[1].padStart(2, "0")}:${match[2]}`;
+    }
+    return "";
   };
 
-  // Function to get formatted start and end time
-  const getFormattedTimes = (startTime: string, endTime: string) => {
-    const start = formatTime(startTime);
-    const end = formatTime(endTime);
-    return `${start} - ${end}`;
+  // Helper: Extract "HH:mm" from start of a timeSlot string
+  const getSlotStartHHMM = (slot: string) => {
+    // e.g. "7:00 AM - 7:30 AM" -> "07:00"
+    const match = slot.match(/^(\d{1,2}):(\d{2})/);
+    if (!match) return "";
+    let hour = parseInt(match[1], 10);
+    const minute = match[2];
+    if (slot.includes("PM") && hour !== 12) hour += 12;
+    if (slot.includes("AM") && hour === 12) hour = 0;
+    return `${hour.toString().padStart(2, "0")}:${minute}`;
   };
 
   if (loading) return <p>Loading schedule...</p>;
 
+  // Build mergedCells map for rendering
   const mergedCells: {
     [key: string]: { rowSpan: number; entry: ScheduleEntry };
   } = {};
 
-  scheduleData.forEach((entry) => {
-    const day = entry.DayOfWeek;
+  scheduleData.forEach((entry, idx) => {
+    const startHHMM = getHHMM(entry.StartTime);
+    const endHHMM = getHHMM(entry.EndTime);
+
+    // Find the starting index in timeSlots by comparing "HH:mm"
     const startIndex = timeSlots.findIndex(
-      (slot) =>
-        slot ===
-        getFormattedTimes(entry.StartTime, entry.EndTime).split(" - ")[0] +
-          " - " +
-          new Date(
-            new Date(`1970-01-01T${entry.StartTime}`).getTime() + 30 * 60000
-          ).toLocaleTimeString("en-US", {
-            hour: "2-digit",
-            minute: "2-digit",
-            hour12: true,
-          })
+      (slot) => getSlotStartHHMM(slot) === startHHMM
     );
 
-    if (startIndex === -1) return;
+    // Logging for debug
+    console.log(
+      `[${idx}] Entry:`,
+      entry.CourseCode,
+      "| Day:",
+      entry.DayOfWeek,
+      "| StartTime:",
+      entry.StartTime,
+      "| EndTime:",
+      entry.EndTime,
+      "| startHHMM:",
+      startHHMM,
+      "| endHHMM:",
+      endHHMM,
+      "| startIndex:",
+      startIndex,
+      entry
+    );
 
+    if (startIndex === -1) {
+      console.warn(
+        `Could not find startIndex for ${entry.CourseCode} (startHHMM: ${startHHMM})`
+      );
+      return;
+    }
+
+    // Calculate how many slots this entry spans
     const units = entry.isLab ? entry.LabHours : entry.LectureHours;
     const span = Math.round(units * 2); // 30 mins per slot
+    console.log(
+      `  -> startIndex: ${startIndex}, span: ${span}, units: ${units}, isLab: ${entry.isLab}`
+    );
 
     for (let i = 0; i < span; i++) {
-      const key = `${day}_${startIndex + i}`;
+      const key = `${entry.DayOfWeek}_${startIndex + i}`;
       mergedCells[key] = {
         entry,
         rowSpan: i === 0 ? span : 0,
       };
-      console.log("Processing scheduleData...");
-      scheduleData.forEach((entry) => {
-        const startTime = new Date(entry.StartTime);
-        const endTime = new Date(entry.EndTime);
-        const formattedStart = startTime.toLocaleTimeString("en-US", {
-          hour: "2-digit",
-          minute: "2-digit",
-          hour12: true,
-        });
-        const formattedEnd = endTime.toLocaleTimeString("en-US", {
-          hour: "2-digit",
-          minute: "2-digit",
-          hour12: true,
-        });
-        const displayTime = `${formattedStart} - ${formattedEnd}`;
-        console.log(`[${entry.DayOfWeek}] ${displayTime}`, entry);
-
-        const key = `${day}_${startIndex + i}`;
-        console.log("Marking key:", key, "for", entry.CourseCode);
-      });
+      console.log(
+        `    - Setting mergedCells[${key}] = { rowSpan: ${
+          i === 0 ? span : 0
+        }, entry: ... }`
+      );
     }
   });
+
+  console.log("Final mergedCells:", mergedCells);
 
   return (
     <div>
@@ -172,27 +212,14 @@ const LoadSectSched: React.FC = () => {
               <tr key={rowIndex}>
                 <td style={{ fontSize: "0.75rem", padding: "4px" }}>{time}</td>
                 {days.map((day) => {
-                  console.log(
-                    "Checking cell for:",
-                    day,
-                    rowIndex,
-                    "→ Key:",
-                    `${day}_${rowIndex}`
-                  );
-
                   const key = `${day}_${rowIndex}`;
-                  const cellInfo = mergedCells[`${day}_${rowIndex}`];
+                  const cellInfo = mergedCells[key];
 
                   if (cellInfo && cellInfo.rowSpan > 0) {
-                    console.log(
-                      "Rendering",
-                      cellInfo.entry.CourseCode,
-                      "at",
-                      `${day}_${rowIndex}`,
-                      "rowSpan:",
-                      cellInfo.rowSpan
-                    );
                     const { entry, rowSpan } = cellInfo;
+                    console.log(
+                      `Rendering cell for ${entry.CourseCode} at ${key} with rowSpan ${rowSpan}`
+                    );
                     return (
                       <td
                         key={key}

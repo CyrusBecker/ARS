@@ -423,29 +423,31 @@ router.get("/schedules/section/:sectionId", async (req, res) => {
   }
 });
 
-// GET: Fetch schedules by professor
-router.get("/schedules/professor/:id", async (req, res) => {
+// GET: Fetch teaching schedules for a professor (for ProfessorSchedModification)
+router.get("/schedules/professor/:professorId", async (req, res) => {
   try {
     const pool = await poolPromise;
-    const professorID = parseInt(req.params.id, 10);
-
-    const result = await pool.request().input("ProfessorID", professorID)
-      .query(`
-        SELECT s.*, 
-               subj.CourseCode, subj.CourseName,
-               prof.FullName AS ProfessorName,
-               r.RoomName
-        FROM Schedules s
-        JOIN Subjects subj ON s.SubjectID = subj.SubjectID
-        JOIN Professors prof ON s.ProfessorID = prof.ProfessorID
-        JOIN Rooms r ON s.RoomID = r.RoomID
-        WHERE s.ProfessorID = @ProfessorID
-      `);
-
+    const professorId = parseInt(req.params.professorId, 10);
+    const result = await pool.request().input("ProfessorID", professorId).query(`
+      SELECT 
+        s.ScheduleID,
+        s.DayOfWeek,
+        FORMAT(s.StartTime, 'HH:mm:ss') AS StartTime,
+        FORMAT(s.EndTime, 'HH:mm:ss') AS EndTime,
+        subj.CourseCode,
+        subj.CourseName,
+        r.RoomName,
+        sec.SectionName
+      FROM Schedules s
+      LEFT JOIN Subjects subj ON s.SubjectID = subj.SubjectID
+      LEFT JOIN Rooms r ON s.RoomID = r.RoomID
+      LEFT JOIN Sections sec ON s.SectionID = sec.SectionID
+      WHERE s.ProfessorID = @ProfessorID
+    `);
     res.json(result.recordset);
   } catch (err) {
-    console.error("Error fetching professor schedules:", err);
-    res.status(500).send("Server error while fetching professor schedules");
+    console.error("Error fetching professor teaching schedules:", err);
+    res.status(500).send("Server error while fetching professor teaching schedules");
   }
 });
 

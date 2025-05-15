@@ -10,6 +10,8 @@ const subjectRoutes = require("./routes/CurrSubjectRet");
 app.use("/api/subj", subjectRoutes);
 const scheduleRoutes = require("./routes/scheduleRoute");
 app.use("/api/sched", scheduleRoutes);
+const professorAssignRoutes = require("./routes/professorAssignRoute");
+app.use("/api/profassign", professorAssignRoutes);
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {

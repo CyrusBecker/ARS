@@ -242,8 +242,9 @@ router.get("/curriculum-subjects/:curriculumId", async (req, res) => {
   }
 });
 
-// Load all professors
+// Load all professors for FacultyLoading from ProfessorManagement
 router.get("/professors", async (req, res) => {
+  console.log("GET /api/subj/professors called");
   try {
     const pool = await poolPromise;
     const result = await pool
@@ -254,6 +255,21 @@ router.get("/professors", async (req, res) => {
   } catch (err) {
     console.error("Error fetching professors:", err);
     res.status(500).send("Server error while loading professors");
+  }
+});
+
+// Debug endpoint: List all professors (for manual testing)
+router.get("/professors/all", async (req, res) => {
+  try {
+    const pool = await poolPromise;
+    const result = await pool.request().query(`
+      SELECT ProfessorID, FullName, EmploymentStatus FROM Professors
+    `);
+    console.log("All professors:", result.recordset);
+    res.json(result.recordset);
+  } catch (err) {
+    console.error("Error fetching all professors:", err);
+    res.status(500).send("Server error while loading all professors");
   }
 });
 
@@ -409,13 +425,21 @@ router.post("/professor-subjects/update", async (req, res) => {
 
 // Load professor info and eligible subjects
 router.get("/professor/:id", async (req, res) => {
+  console.log("GET /subj/professor/:id called with id:", req.params.id);
   try {
     const pool = await poolPromise;
-    const id = parseInt(req.params.id, 10);
-
-    if (isNaN(id)) {
+    // Accept both string and number for id
+    let id = req.params.id;
+    if (!/^\d+$/.test(id)) {
       return res.status(400).json({ message: "Invalid professor ID" });
     }
+    id = parseInt(id, 10);
+
+    // Log all professors for debugging
+    const allProfs = await pool.request().query(`
+      SELECT ProfessorID, FullName, EmploymentStatus FROM Professors
+    `);
+    console.log("Current Professors in DB:", allProfs.recordset);
 
     // Fetch professor details
     const profResult = await pool.request().input("ProfessorID", id).query(`
@@ -436,7 +460,13 @@ router.get("/professor/:id", async (req, res) => {
         WHERE ps.ProfessorID = @ProfessorID
       `);
 
-    // Return the professor details and their eligible subjects
+    console.log("Professor result:", profResult.recordset);
+    console.log("Subjects result:", subjectsResult.recordset);
+
+    if (!profResult.recordset[0]) {
+      return res.status(404).json({ message: "Professor not found" });
+    }
+
     res.json({
       professor: profResult.recordset[0], // Single professor data
       eligibleSubjects: subjectsResult.recordset, // List of subjects the professor teaches

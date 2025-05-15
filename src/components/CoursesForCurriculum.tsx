@@ -194,10 +194,13 @@ const CoursesForCurriculum: React.FC = () => {
           : ""}
       </Typography>
       {curriculumInfo?.Notes && (
-        <Typography variant="body2" mb={2}>
+        <Typography fontSize={15} mb={2}>
           Notes: {curriculumInfo.Notes}
         </Typography>
       )}
+      <Typography fontSize={12} mb={2}>
+        Remember to make the Level and CourseCode values stop disappearing
+      </Typography>
       <Box mb={2}>
         <Checkbox
           checked={manualUnitChange}

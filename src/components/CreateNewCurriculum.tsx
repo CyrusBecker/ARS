@@ -181,6 +181,10 @@ const CreateNewCurriculum: React.FC = () => {
       <Typography variant="h6" mb={2}>
         Create New Curriculum
       </Typography>
+      <Typography fontSize={12}>
+        Note To self: Remember to make the Units inputBox able to accept decimal
+        values and make the arrow bars unable to go down past 0 like -1
+      </Typography>
       <TextField
         fullWidth
         label="Notes"

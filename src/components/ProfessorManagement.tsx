@@ -93,7 +93,9 @@ const FacultyLoading: React.FC = () => {
                   </Button>
                   <Button
                     variant="contained"
-                    disabled
+                    onClick={() =>
+                      navigate(`/faculty/schedule/${prof.ProfessorID}`)
+                    }
                     startIcon={<EditIcon />}
                     sx={{ mr: 1 }}
                   >

@@ -192,10 +192,10 @@ const SectionList: React.FC = () => {
           <Table>
             <TableHead>
               <TableRow>
-                <TableCell>YEAR & SEMESTER</TableCell>
-                <TableCell>SECTION NAME</TableCell>
-                <TableCell>STATUS</TableCell>
-                <TableCell>ACTIONS</TableCell>
+                <TableCell align="center">YEAR & SEMESTER</TableCell>
+                <TableCell align="center">SECTION NAME</TableCell>
+                <TableCell align="center">STATUS</TableCell>
+                <TableCell align="center">ACTIONS</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -256,6 +256,20 @@ const SectionList: React.FC = () => {
                             }}
                           >
                             View
+                          </Button>
+                          {/* New Assign Professors Button */}
+                          <Button
+                            variant="contained"
+                            onClick={() =>
+                              navigate(`/schedule/assign/${section.SectionID}`)
+                            }
+                            sx={{
+                              bgcolor: "primary.light",
+                              color: "black",
+                              "&:hover": { bgcolor: "primary.light" },
+                            }}
+                          >
+                            Assign Professors
                           </Button>
                           <Button
                             disabled

@@ -182,24 +182,24 @@ const CurriculumList: React.FC = () => {
           <Table>
             <TableHead>
               <TableRow>
-                <TableCell>YEAR</TableCell>
-                <TableCell>PROGRAM CODE</TableCell>
-                <TableCell>PROGRAM NAME</TableCell>
-                <TableCell>NOTES</TableCell>
-                <TableCell>ACTION</TableCell>
+                <TableCell align="center">YEAR</TableCell>
+                <TableCell align="center">PROGRAM CODE</TableCell>
+                <TableCell align="center">PROGRAM NAME</TableCell>
+                <TableCell align="center">NOTES</TableCell>
+                <TableCell align="center">ACTION</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {curriculums.map((row) => (
                 <TableRow key={row.CurriculumID}>
-                  <TableCell>{row.AcademicYear}</TableCell>
-                  <TableCell>{row.ProgramCode}</TableCell>
-                  <TableCell>
+                  <TableCell align="center">{row.AcademicYear}</TableCell>
+                  <TableCell align="center">{row.ProgramCode}</TableCell>
+                  <TableCell align="center">
                     {row.ProgramName ||
                       "Bachelor of Science in Information Technology"}
                   </TableCell>
-                  <TableCell>{row.Notes}</TableCell>
-                  <TableCell>
+                  <TableCell align="center">{row.Notes}</TableCell>
+                  <TableCell align="center">
                     <Stack direction="row" spacing={2} justifyContent="center">
                       <Button
                         variant="contained"
