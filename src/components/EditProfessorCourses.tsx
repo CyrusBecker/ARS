@@ -146,6 +146,14 @@ const EditProfessorSubjects = () => {
 
   return (
     <Container maxWidth="lg" sx={{ mt: 4 }}>
+      <Box mb={2}>
+        <Button
+          variant="contained"
+          onClick={() => navigate("/facultyOverview")}
+        >
+          Back
+        </Button>
+      </Box>
       <Typography variant="h4" sx={{ mb: 4 }}>
         Edit Professor Subjects
       </Typography>

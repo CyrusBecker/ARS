@@ -18,8 +18,9 @@ router.get("/schedules/professor/:id", async (req, res) => {
           s.ScheduleID, s.SectionID, s.SubjectID,
           s.ProfessorID, s.RoomID,
           s.DayOfWeek, s.StartTime, s.EndTime,
-          subj.CourseCode, subj.CourseName,
+          subj.CourseCode, subj.CourseName, subj.IsLab,
           prof.FullName AS ProfessorName,
+          prof.CurrentUnits,
           r.RoomName
         FROM Schedules s
         JOIN Subjects subj ON s.SubjectID = subj.SubjectID
@@ -249,9 +250,7 @@ router.get("/other-schedules/:professorId", async (req, res) => {
     const professorId = parseInt(req.params.professorId, 10);
     const result = await pool.request().input("ProfessorID", professorId)
       .query(`
-      SELECT OtherSchedID, ProfessorID, Type, DayOfWeek, 
-             FORMAT(StartTime, 'HH:mm:ss') AS StartTime, 
-             FORMAT(EndTime, 'HH:mm:ss') AS EndTime
+      SELECT OtherSchedID, ProfessorID, Type, DayOfWeek, StartTime, EndTime
       FROM ProfessorOtherSchedules
       WHERE ProfessorID = @ProfessorID
     `);
@@ -272,7 +271,9 @@ router.post("/other-schedules/:professorId", async (req, res) => {
     const pool = await poolPromise;
     const professorId = parseInt(req.params.professorId, 10);
     const { schedules } = req.body;
+    console.log("Received schedules array:", schedules);
     if (!Array.isArray(schedules)) {
+      console.log("Missing schedules array in request body:", req.body);
       return res.status(400).json({ message: "Missing schedules array" });
     }
     // Delete all existing for this professor
@@ -281,6 +282,7 @@ router.post("/other-schedules/:professorId", async (req, res) => {
     `);
     // Insert new
     for (const sched of schedules) {
+      console.log("Inserting schedule:", sched);
       await pool
         .request()
         .input("ProfessorID", professorId)
@@ -298,6 +300,27 @@ router.post("/other-schedules/:professorId", async (req, res) => {
   } catch (err) {
     console.error("Error saving other schedules:", err);
     res.status(500).send("Server error while saving other schedules");
+  }
+});
+
+// GET: Fetch CurrentUnits for a professor (simple, single value)
+router.get("/professor-current-units/:professorId", async (req, res) => {
+  try {
+    const pool = await poolPromise;
+    const professorId = parseInt(req.params.professorId, 10);
+    const result = await pool
+      .request()
+      .input("ProfessorID", professorId)
+      .query(
+        `SELECT CurrentUnits FROM Professors WHERE ProfessorID = @ProfessorID`
+      );
+    if (result.recordset.length === 0) {
+      return res.status(404).json({ message: "Professor not found" });
+    }
+    res.json({ CurrentUnits: result.recordset[0].CurrentUnits });
+  } catch (err) {
+    console.error("Error fetching professor CurrentUnits:", err);
+    res.status(500).send("Server error while fetching professor CurrentUnits");
   }
 });
 

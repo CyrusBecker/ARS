@@ -163,6 +163,9 @@ const CurriculumList: React.FC = () => {
       </Drawer>
 
       <Box component="main" sx={{ flexGrow: 1, p: 3, mt: "86px", ml: 2 }}>
+        <Button onClick={() => navigate("/")} variant="contained">
+          Back
+        </Button>
         <Typography variant="h4" sx={{ mt: 5, mb: 3 }}>
           Curriculum
         </Typography>
@@ -217,6 +220,7 @@ const CurriculumList: React.FC = () => {
                       </Button>
                       <Button
                         variant="contained"
+                        disabled // IT IS DISABLED BECAUSE THE EDIT IS NOT FUNCTIONING YET BECAUSE OF THE CONSTRAINTS
                         startIcon={<EditIcon />}
                         onClick={() =>
                           navigate(`/curriculum/edit/${row.CurriculumID}`)

@@ -428,7 +428,8 @@ router.get("/schedules/professor/:professorId", async (req, res) => {
   try {
     const pool = await poolPromise;
     const professorId = parseInt(req.params.professorId, 10);
-    const result = await pool.request().input("ProfessorID", professorId).query(`
+    const result = await pool.request().input("ProfessorID", professorId)
+      .query(`
       SELECT 
         s.ScheduleID,
         s.DayOfWeek,
@@ -447,7 +448,9 @@ router.get("/schedules/professor/:professorId", async (req, res) => {
     res.json(result.recordset);
   } catch (err) {
     console.error("Error fetching professor teaching schedules:", err);
-    res.status(500).send("Server error while fetching professor teaching schedules");
+    res
+      .status(500)
+      .send("Server error while fetching professor teaching schedules");
   }
 });
 

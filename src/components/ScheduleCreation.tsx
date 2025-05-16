@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
 import { JSX } from "@emotion/react/jsx-runtime";
+import { Box, Button } from "@mui/material";
 
 interface DroppedSubject {
   id: string;
@@ -83,6 +84,7 @@ const ScheduleCreation: React.FC = () => {
   const [hoverHighlight, setHoverHighlight] = useState<HoverHighlight | null>(
     null
   );
+  const [sectionName, setSectionName] = useState<string>("");
   const { sectionId } = useParams();
   // console.log("SectionID from URL:", sectionId);
 
@@ -165,8 +167,24 @@ const ScheduleCreation: React.FC = () => {
       setDraggedSubject(null);
     };
 
+    const fetchSectionName = async () => {
+      if (!sectionId) return;
+      try {
+        const response = await fetch(
+          `http://localhost:3000/api/sched/schedules/section/${sectionId}`
+        );
+        const data = await response.json();
+        if (Array.isArray(data) && data.length > 0 && data[0].SectionName) {
+          setSectionName(data[0].SectionName);
+        }
+      } catch (err) {
+        // ignore
+      }
+    };
+
     fetchRooms();
     fetchSubjects();
+    fetchSectionName();
     window.addEventListener("dragend", handleDragEnd);
     return () => window.removeEventListener("dragend", handleDragEnd);
   }, []);
@@ -376,12 +394,12 @@ const ScheduleCreation: React.FC = () => {
   };
 
   return (
-    <div style={{ display: "flex" }}>
+    <Box display="flex">
       {/* Sidebar */}
-      <div
-        style={{
-          width: "250px",
-          padding: "10px",
+      <Box
+        sx={{
+          width: 250,
+          padding: 2,
           borderRight: "1px solid #ccc",
         }}
       >
@@ -418,152 +436,178 @@ const ScheduleCreation: React.FC = () => {
             );
           })
         )}
-      </div>
+      </Box>
 
-      {/* Schedule Table */}
-      <div style={{ overflowX: "auto", padding: "10px", flexGrow: 1 }}>
-        <table
-          border={1}
-          cellPadding={4}
-          style={{ borderCollapse: "collapse", width: "100%" }}
+      {/* Main content */}
+      <Box sx={{ flexGrow: 1, p: 2 }}>
+        {/* Section name and buttons in one row */}
+        <Box
+          display="flex"
+          alignItems="center"
+          justifyContent="space-between"
+          mb={2}
         >
-          <thead>
-            <tr>
-              <th style={{ width: "100px" }}>Time</th>
-              {days.map((day) => (
-                <th key={day}>{day}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {timeSlots.map((time, rowIndex) => (
-              <tr key={rowIndex}>
-                <td style={{ fontSize: "0.75rem", padding: "4px" }}>{time}</td>
-                {days.map((day) => {
-                  const key = `${day}_${rowIndex}`;
-                  const cell = schedule[key];
+          <Box fontWeight="bold" fontSize={20}>
+            {sectionName ? `Schedule for ${sectionName}` : ""}
+          </Box>
+          <Box display="flex" gap={2}>
+            <Button variant="outlined" onClick={() => navigate(-1)}>
+              Cancel
+            </Button>
+            <Button
+              variant="contained"
+              color="success"
+              onClick={handleSaveSchedule}
+            >
+              Save Schedule
+            </Button>
+          </Box>
+        </Box>
+        {/* Schedule Table */}
+        <Box sx={{ overflowX: "auto" }}>
+          <table
+            border={1}
+            cellPadding={4}
+            style={{ borderCollapse: "collapse", width: "100%" }}
+          >
+            <thead>
+              <tr>
+                <th style={{ width: "100px" }}>Time</th>
+                {days.map((day) => (
+                  <th key={day}>{day}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {timeSlots.map((time, rowIndex) => (
+                <tr key={rowIndex}>
+                  <td style={{ fontSize: "0.75rem", padding: "4px" }}>
+                    {time}
+                  </td>
+                  {days.map((day) => {
+                    const key = `${day}_${rowIndex}`;
+                    const cell = schedule[key];
 
-                  if (cell) {
-                    if (cell.rowSpan === 0) return null;
-                    return (
-                      <td
-                        key={key}
-                        onDragOver={(e) =>
-                          onDragOver(e, day, rowIndex, draggedSubject?.hours)
-                        }
-                        onDragLeave={onDragLeave}
-                        onDrop={(e) => onDrop(e, day, rowIndex)}
-                        rowSpan={cell.rowSpan}
-                        style={{
-                          backgroundColor: cell.subject.isLab
-                            ? "#ffe6cc" // Example lab color (light orange)
-                            : "#d0f0d0", // Example lecture color (light green)
-                        }}
-                      >
-                        <div
-                          draggable
-                          onDragStart={(e) =>
-                            onDragStart(e, cell.subject, {
-                              day,
-                              timeIndex: rowIndex,
-                            })
+                    if (cell) {
+                      if (cell.rowSpan === 0) return null;
+                      return (
+                        <td
+                          key={key}
+                          onDragOver={(e) =>
+                            onDragOver(e, day, rowIndex, draggedSubject?.hours)
                           }
-                          onDragEnd={onDragHL}
+                          onDragLeave={onDragLeave}
+                          onDrop={(e) => onDrop(e, day, rowIndex)}
+                          rowSpan={cell.rowSpan}
                           style={{
-                            cursor: "grab",
-                            backgroundColor: "#transparent",
-                            borderRadius: "6px",
-                            padding: "6px",
+                            backgroundColor: cell.subject.isLab
+                              ? "#ffe6cc" // Example lab color (light orange)
+                              : "#d0f0d0", // Example lecture color (light green)
                           }}
                         >
-                          <strong>{cell.subject.name}</strong>
-                          <br />
-                          Room:
-                          <select
-                            value={cell.subject.room}
-                            onChange={(e) =>
-                              updateRoom(cell.subject.id, e.target.value)
+                          <div
+                            draggable
+                            onDragStart={(e) =>
+                              onDragStart(e, cell.subject, {
+                                day,
+                                timeIndex: rowIndex,
+                              })
                             }
-                          >
-                            <option value="" disabled selected hidden></option>
-                            {rooms
-                              .filter(
-                                (room) =>
-                                  room.RoomType ===
-                                  (cell.subject.isLab
-                                    ? "Laboratory"
-                                    : "Lecture")
-                              )
-                              .map((room) => (
-                                <option key={room.RoomID} value={room.RoomName}>
-                                  {room.RoomName}{" "}
-                                  {room.Notes ? ` - ${room.Notes}` : ""}
-                                </option>
-                              ))}
-                          </select>
-                          <br />
-                          {cell.subject.hours} hrs
-                          <br />
-                          <button
-                            onClick={() =>
-                              removeSubject(day, rowIndex, cell.subject.hours)
-                            }
+                            onDragEnd={onDragHL}
                             style={{
-                              marginTop: "4px",
-                              fontSize: "0.8rem",
-                              backgroundColor: "tomato",
-                              color: "white",
-                              border: "none",
-                              borderRadius: "4px",
-                              padding: "2px 6px",
+                              cursor: "grab",
+                              backgroundColor: "#transparent",
+                              borderRadius: "6px",
+                              padding: "6px",
                             }}
                           >
-                            Remove
-                          </button>
-                        </div>
-                      </td>
-                    );
-                  } else {
-                    return (
-                      <td
-                        key={key}
-                        onDragOver={(e) =>
-                          onDragOver(e, day, rowIndex, draggedSubject?.hours)
-                        }
-                        onDrop={(e) => onDrop(e, day, rowIndex)}
-                        style={{
-                          height: "40px",
-                          minWidth: "100px",
-                          backgroundColor:
-                            hoverHighlight &&
-                            hoverHighlight.day === day &&
-                            rowIndex >= hoverHighlight.startIndex &&
-                            rowIndex <
-                              hoverHighlight.startIndex + hoverHighlight.length
-                              ? "#cbe4ff"
-                              : "white",
-                        }}
-                      />
-                    );
-                  }
-                })}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      <div
-        style={{ display: "flex", justifyContent: "flex-end", padding: "10px" }}
-      >
-        <button
-          onClick={handleSaveSchedule}
-          style={{ width: "150px", height: "100px" }}
-        >
-          Save Schedule
-        </button>
-      </div>
-    </div>
+                            <strong>{cell.subject.name}</strong>
+                            <br />
+                            Room:
+                            <select
+                              value={cell.subject.room}
+                              onChange={(e) =>
+                                updateRoom(cell.subject.id, e.target.value)
+                              }
+                            >
+                              <option
+                                value=""
+                                disabled
+                                selected
+                                hidden
+                              ></option>
+                              {rooms
+                                .filter(
+                                  (room) =>
+                                    room.RoomType ===
+                                    (cell.subject.isLab
+                                      ? "Laboratory"
+                                      : "Lecture")
+                                )
+                                .map((room) => (
+                                  <option
+                                    key={room.RoomID}
+                                    value={room.RoomName}
+                                  >
+                                    {room.RoomName}{" "}
+                                    {room.Notes ? ` - ${room.Notes}` : ""}
+                                  </option>
+                                ))}
+                            </select>
+                            <br />
+                            {cell.subject.hours} hrs
+                            <br />
+                            <button
+                              onClick={() =>
+                                removeSubject(day, rowIndex, cell.subject.hours)
+                              }
+                              style={{
+                                marginTop: "4px",
+                                fontSize: "0.8rem",
+                                backgroundColor: "tomato",
+                                color: "white",
+                                border: "none",
+                                borderRadius: "4px",
+                                padding: "2px 6px",
+                              }}
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        </td>
+                      );
+                    } else {
+                      return (
+                        <td
+                          key={key}
+                          onDragOver={(e) =>
+                            onDragOver(e, day, rowIndex, draggedSubject?.hours)
+                          }
+                          onDrop={(e) => onDrop(e, day, rowIndex)}
+                          style={{
+                            height: "40px",
+                            minWidth: "100px",
+                            backgroundColor:
+                              hoverHighlight &&
+                              hoverHighlight.day === day &&
+                              rowIndex >= hoverHighlight.startIndex &&
+                              rowIndex <
+                                hoverHighlight.startIndex +
+                                  hoverHighlight.length
+                                ? "#cbe4ff"
+                                : "white",
+                          }}
+                        />
+                      );
+                    }
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Box>
+      </Box>
+    </Box>
   );
 };
 

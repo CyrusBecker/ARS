@@ -49,7 +49,12 @@ const FacultyLoading: React.FC = () => {
 
   return (
     <Box p={3}>
-      <Typography variant="h4" gutterBottom>
+      <Box mb={3}>
+        <Button variant="contained" onClick={() => navigate("/")}>
+          Back
+        </Button>
+      </Box>
+      <Typography variant="h4" gutterBottom mb={2}>
         Faculty Loading
       </Typography>
 

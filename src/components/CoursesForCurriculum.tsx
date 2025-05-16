@@ -91,18 +91,44 @@ const CoursesForCurriculum: React.FC = () => {
       );
       const data = await res.json();
 
-      const mapped: TableRowData[] = data.map((subj: any) => ({
-        C_Year: "", // Year should be set based on curriculum year or a default value
-        Semester: subj.Semester === 1 ? "1st Semester" : "2nd Semester",
-        Level: `${subj.YearLevel}st Year`, // Ensure YearLevel is mapped correctly
-        Program_Code: "BSIT",
-        Course_Code: subj.CourseCode, // CourseCode should be from the API data
-        Course_Name: subj.CourseName,
-        Lec: subj.LectureHours,
-        Lab: subj.LabHours,
-        Units: subj.Units,
-        Boolean: subj.IsLab === 1,
-      }));
+      // Fix: Map Level, Course_Code, and Boolean (Comp Lab) robustly
+      const mapped: TableRowData[] = data.map((subj: any) => {
+        // Level: Use subj.YearLevel if present, fallback to "1st Year"
+        let levelStr = "";
+        if (subj.YearLevel) {
+          const yearNum = parseInt(subj.YearLevel);
+          if (!isNaN(yearNum) && yearNum >= 1 && yearNum <= 4) {
+            levelStr = `${yearNum}st Year`;
+            if (yearNum === 2) levelStr = "2nd Year";
+            else if (yearNum === 3) levelStr = "3rd Year";
+            else if (yearNum === 4) levelStr = "4th Year";
+          } else {
+            levelStr = "1st Year";
+          }
+        } else {
+          levelStr = "1st Year";
+        }
+
+        // Course_Code: fallback to subj.CourseCode or empty string
+        const courseCode = subj.CourseCode || "";
+
+        // Boolean: Comp Lab checkbox, true if IsLab is 1 or true
+        const isLab = subj.IsLab === 1 || subj.IsLab === true;
+
+        return {
+          C_Year: "",
+          Semester: subj.Semester === 1 ? "1st Semester" : "2nd Semester",
+          Level: levelStr,
+          Program_Code: "BSIT",
+          Course_Code: courseCode,
+          Course_Name: subj.CourseName || "",
+          Lec: subj.LectureHours ?? 0,
+          Lab: subj.LabHours ?? 0,
+          Units: subj.Units ?? 0,
+          Boolean: isLab,
+        };
+      });
+
       setSubjSuggest(data);
       setRows(mapped);
     } catch (err) {
@@ -127,18 +153,49 @@ const CoursesForCurriculum: React.FC = () => {
 
   const handleSave = async () => {
     try {
+      // Map rows to backend format
+      const mappedRows = rows.map((row) => {
+        // Find SubjectID from subjSuggest using Course_Code
+        const subj = subjSuggest.find((s) => s.CourseCode === row.Course_Code);
+        if (!subj) {
+          throw new Error(
+            `Subject with CourseCode ${row.Course_Code} not found in suggestions.`
+          );
+        }
+        // Convert "1st Year" → 1, "2nd Year" → 2, etc.
+        const yearLevel =
+          typeof row.Level === "string"
+            ? parseInt(row.Level) ||
+              (row.Level.match(/^(\d)/) ? parseInt(row.Level[0]) : 1)
+            : 1;
+        // Convert "1st Semester" → 1, "2nd Semester" → 2
+        const semester = row.Semester && row.Semester.includes("1") ? 1 : 2;
+
+        return {
+          SubjectID: subj.SubjectID,
+          CurriculumID: curriculumId,
+          YearLevel: yearLevel,
+          Semester: semester,
+        };
+      });
+
       const res = await fetch(
         "http://localhost:3000/api/subj/curriculum-subjects",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ rows, curriculumID: curriculumId }),
+          body: JSON.stringify({
+            rows: mappedRows,
+            curriculumID: curriculumId,
+          }),
         }
       );
       const result = await res.json();
       console.log(result);
+      alert("Curriculum subjects saved!");
     } catch (err) {
       console.error("Save failed:", err);
+      alert("Failed to save curriculum subjects.");
     }
   };
 
@@ -182,6 +239,30 @@ const CoursesForCurriculum: React.FC = () => {
       const updated = [...rows];
       updated.splice(index, 1);
       setRows(updated);
+    }
+  };
+
+  // Fix: Only update the current row's Course_Code and suggestions, not all rows
+  const handleCourseCodeInputChange = async (idx: number, val: string) => {
+    inputChange(idx, "Course_Code", val);
+    if (val.length >= 2) {
+      try {
+        const response = await fetch(
+          `http://localhost:3000/api/subj/subjects?search=${val}`
+        );
+        const data = await response.json();
+        // Instead of setSubjSuggest(data), merge new suggestions with existing ones
+        setSubjSuggest((prev) => {
+          // Merge unique CourseCodes only
+          const codes = new Set([...prev, ...data].map((s) => s.CourseCode));
+          return [...prev, ...data].filter(
+            (s, i, arr) =>
+              arr.findIndex((ss) => ss.CourseCode === s.CourseCode) === i
+          );
+        });
+      } catch (err) {
+        console.error("Autocomplete fetch error:", err);
+      }
     }
   };
 
@@ -280,7 +361,7 @@ const CoursesForCurriculum: React.FC = () => {
               <TableCell>
                 <Select
                   fullWidth
-                  value={row.Level}
+                  value={row.Level || ""}
                   displayEmpty
                   size="small"
                   onChange={(e) => inputChange(idx, "Level", e.target.value)}
@@ -309,24 +390,17 @@ const CoursesForCurriculum: React.FC = () => {
                     row.Course_Code
                       ? subjSuggest.find(
                           (s) => s.CourseCode === row.Course_Code
-                        )
-                      : undefined
+                        ) || row.Course_Code
+                      : ""
                   }
-                  isOptionEqualToValue={(o, v) => o.CourseCode === v.CourseCode}
-                  onInputChange={async (_, val) => {
-                    inputChange(idx, "Course_Code", val);
-                    if (val.length >= 2) {
-                      try {
-                        const response = await fetch(
-                          `http://localhost:3000/api/subj/subjects?search=${val}`
-                        );
-                        const data = await response.json();
-                        setSubjSuggest(data);
-                      } catch (err) {
-                        console.error("Autocomplete fetch error:", err);
-                      }
-                    }
-                  }}
+                  isOptionEqualToValue={(o, v) =>
+                    typeof o === "string" || typeof v === "string"
+                      ? o === v
+                      : o.CourseCode === v.CourseCode
+                  }
+                  onInputChange={(_, val) =>
+                    handleCourseCodeInputChange(idx, val)
+                  }
                   onChange={(_, val: any) => {
                     if (val) {
                       inputChange(idx, "Course_Code", val.CourseCode);
@@ -334,7 +408,11 @@ const CoursesForCurriculum: React.FC = () => {
                       inputChange(idx, "Lec", val.LectureHours);
                       inputChange(idx, "Lab", val.LabHours);
                       inputChange(idx, "Units", val.Units);
-                      inputChange(idx, "Boolean", val.IsLab === true);
+                      inputChange(
+                        idx,
+                        "Boolean",
+                        val.IsLab === true || val.IsLab === 1
+                      );
                     }
                   }}
                   renderInput={(params) => (
@@ -391,7 +469,7 @@ const CoursesForCurriculum: React.FC = () => {
               </TableCell>
               <TableCell align="center">
                 <Checkbox
-                  checked={row.Boolean}
+                  checked={!!row.Boolean}
                   onChange={(e) => {
                     inputChange(idx, "Boolean", e.target.checked);
                     if (!e.target.checked) inputChange(idx, "Lab", 0);

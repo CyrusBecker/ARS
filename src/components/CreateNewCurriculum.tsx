@@ -178,6 +178,14 @@ const CreateNewCurriculum: React.FC = () => {
 
   return (
     <Box p={3}>
+      <Box mb={3}>
+        <Button
+          variant="contained"
+          onClick={() => navigate("/curriculumOverview")}
+        >
+          Back
+        </Button>
+      </Box>
       <Typography variant="h6" mb={2}>
         Create New Curriculum
       </Typography>

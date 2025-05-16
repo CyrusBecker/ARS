@@ -173,12 +173,15 @@ const SectionList: React.FC = () => {
       </Drawer>
 
       <Box component="main" sx={{ flexGrow: 1, p: 3, mt: "86px", ml: 2 }}>
+        <Button onClick={() => navigate("/")} variant="contained">
+          Back
+        </Button>
         <Typography variant="h4" sx={{ mt: 5, mb: 3 }}>
           BSIT Sections
         </Typography>
-
         <Box sx={{ display: "flex", justifyContent: "flex-end", mb: 3 }}>
           <Button
+            disabled
             variant="contained"
             color="primary"
             startIcon={<AddIcon />}
@@ -245,6 +248,7 @@ const SectionList: React.FC = () => {
                             Create Schedule
                           </Button>
                           <Button
+                            disabled={section.ScheduleStatus === "No Schedule"}
                             variant="contained"
                             onClick={() =>
                               navigate(`/schedule/view/${section.SectionID}`)

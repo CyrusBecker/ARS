@@ -165,24 +165,21 @@ const LoadSectSched: React.FC = () => {
       return;
     }
 
-    // Calculate how many slots this entry spans
-    const units = entry.isLab ? entry.LabHours : entry.LectureHours;
-    const span = Math.round(units * 2); // 30 mins per slot
-    console.log(
-      `  -> startIndex: ${startIndex}, span: ${span}, units: ${units}, isLab: ${entry.isLab}`
-    );
+    // Calculate span by time difference (in minutes) between StartTime and EndTime
+    const [startHour, startMin] = startHHMM.split(":").map(Number);
+    const [endHour, endMin] = endHHMM.split(":").map(Number);
+    const startTotal = startHour * 60 + startMin;
+    const endTotal = endHour * 60 + endMin;
+    const span = Math.round((endTotal - startTotal) / 30);
 
-    for (let i = 0; i < span; i++) {
+    const finalSpan = span > 0 ? span : 1;
+
+    for (let i = 0; i < finalSpan; i++) {
       const key = `${entry.DayOfWeek}_${startIndex + i}`;
       mergedCells[key] = {
         entry,
-        rowSpan: i === 0 ? span : 0,
+        rowSpan: i === 0 ? finalSpan : 0,
       };
-      console.log(
-        `    - Setting mergedCells[${key}] = { rowSpan: ${
-          i === 0 ? span : 0
-        }, entry: ... }`
-      );
     }
   });
 
@@ -217,9 +214,8 @@ const LoadSectSched: React.FC = () => {
 
                   if (cellInfo && cellInfo.rowSpan > 0) {
                     const { entry, rowSpan } = cellInfo;
-                    console.log(
-                      `Rendering cell for ${entry.CourseCode} at ${key} with rowSpan ${rowSpan}`
-                    );
+                    // Calculate hours from rowSpan (each slot is 0.5 hr)
+                    const hours = rowSpan * 0.5;
                     return (
                       <td
                         key={key}
@@ -234,7 +230,7 @@ const LoadSectSched: React.FC = () => {
                           <br />
                           Room: {entry.RoomName}
                           <br />
-                          {entry.LectureHours + entry.LabHours} hrs
+                          {hours} hrs
                           <br />
                           Professor: {entry.FullName || "Unassigned"}
                         </div>

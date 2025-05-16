@@ -138,21 +138,37 @@ router.post("/curriculum-subjects", async (req, res) => {
       if (!subjRes.recordset.length) continue;
 
       const subjectID = subjRes.recordset[0].SubjectID;
-      const yearLevel = parseInt(row.Level); // assuming Level is in '1st Year' format
-      const semester = row.Semester.includes("1") ? 1 : 2;
+      // Parse year level robustly from Level string (e.g., "1st Year" => 1)
+      let yearLevel = 1;
+      if (typeof row.Level === "string") {
+        const match = row.Level.match(/^(\d)/);
+        if (match) yearLevel = parseInt(match[1]);
+      }
+      // Parse semester (e.g., "1st Semester" => 1)
+      const semester = row.Semester && row.Semester.includes("1") ? 1 : 2;
 
+      // Upsert using new unique constraint (CurriculumID, SubjectID, YearLevel, Semester)
       await pool
         .request()
         .input("CurriculumID", curriculumID)
         .input("SubjectID", subjectID)
         .input("YearLevel", yearLevel)
         .input("Semester", semester).query(`
-          IF EXISTS (SELECT 1 FROM CurriculumSubjects WHERE CurriculumID = @CurriculumID AND SubjectID = @SubjectID)
+          IF EXISTS (
+            SELECT 1 FROM CurriculumSubjects 
+            WHERE CurriculumID = @CurriculumID 
+              AND SubjectID = @SubjectID
+              AND YearLevel = @YearLevel
+              AND Semester = @Semester
+          )
           BEGIN
             -- Update the existing record if it exists
             UPDATE CurriculumSubjects
             SET YearLevel = @YearLevel, Semester = @Semester
-            WHERE CurriculumID = @CurriculumID AND SubjectID = @SubjectID
+            WHERE CurriculumID = @CurriculumID 
+              AND SubjectID = @SubjectID
+              AND YearLevel = @YearLevel
+              AND Semester = @Semester
           END
           ELSE
           BEGIN

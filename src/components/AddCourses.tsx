@@ -141,7 +141,7 @@ const ViewCurriculum: React.FC = () => {
         <Button
           variant="contained"
           startIcon={<EditIcon />}
-          disabled={!curriculumInfo}
+          disabled // FOR NOW THIS BUTTON IS DISABLED BECAUSE THE SAVING WHEN EDITING IS NOT HAPPENING BECAUSE OF CONSTRAINTS ={!curriculumInfo}
           onClick={() =>
             navigate(`/curriculum/edit/${curriculumInfo?.CurriculumID}`)
           }

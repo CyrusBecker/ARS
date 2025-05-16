@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
+import { Box, Button } from "@mui/material";
 
 interface ScheduleEntry {
   ScheduleID: number;
@@ -80,6 +81,7 @@ const timeSlots = [
 
 const AssigningProfessors: React.FC = () => {
   const { sectionId } = useParams();
+  const navigate = useNavigate();
   const [scheduleData, setScheduleData] = useState<ScheduleEntry[]>([]);
   const [professors, setProfessors] = useState<Professor[]>([]);
   const [professorAvailability, setProfessorAvailability] = useState<
@@ -96,6 +98,10 @@ const AssigningProfessors: React.FC = () => {
       .then((data) => {
         setScheduleData(data);
         if (data.length > 0) setSectionName(data[0].SectionName);
+        /*
+        if (Array.isArray(data) && data.length > 0 && data[0].SectionName) {
+          setSectionName(data[0].SectionName);
+        } */
       });
 
     fetch(`http://localhost:3000/api/profassign/professors`)
@@ -258,17 +264,23 @@ const AssigningProfessors: React.FC = () => {
 
   scheduleData.forEach((entry) => {
     const startHHMM = getHHMM(entry.StartTime);
+    const endHHMM = getHHMM(entry.EndTime);
     const startIndex = timeSlots.findIndex(
       (slot) => getSlotStartHHMM(slot) === startHHMM
     );
     if (startIndex === -1) return;
-    const units = entry.isLab ? entry.LabHours : entry.LectureHours;
-    const span = Math.round(units * 2);
-    for (let i = 0; i < span; i++) {
+    // Calculate span by time difference (in minutes) between StartTime and EndTime
+    const [startHour, startMin] = startHHMM.split(":").map(Number);
+    const [endHour, endMin] = endHHMM.split(":").map(Number);
+    const startTotal = startHour * 60 + startMin;
+    const endTotal = endHour * 60 + endMin;
+    const span = Math.round((endTotal - startTotal) / 30);
+    const finalSpan = span > 0 ? span : 1;
+    for (let i = 0; i < finalSpan; i++) {
       const key = `${entry.DayOfWeek}_${startIndex + i}`;
       mergedCells[key] = {
         entry,
-        rowSpan: i === 0 ? span : 0,
+        rowSpan: i === 0 ? finalSpan : 0,
       };
     }
   });
@@ -301,9 +313,9 @@ const AssigningProfessors: React.FC = () => {
   });
 
   return (
-    <div style={{ display: "flex" }}>
+    <Box display="flex">
       {/* Professors sidebar */}
-      <div style={{ width: 250, padding: 10, borderRight: "1px solid #ccc" }}>
+      <Box sx={{ width: 250, p: 2, borderRight: "1px solid #ccc" }}>
         <h3>Professors</h3>
         {professors.map((prof) => {
           const pendingUnits = getPendingUnits(prof);
@@ -347,124 +359,140 @@ const AssigningProfessors: React.FC = () => {
             </div>
           );
         })}
-      </div>
-      {/* Schedule Table */}
-      <div style={{ flexGrow: 1, padding: 10 }}>
-        <h2>Assign Professors for {sectionName}</h2>
-        <table
-          border={1}
-          cellPadding={4}
-          style={{ borderCollapse: "collapse", width: "100%" }}
+      </Box>
+      {/* Main content */}
+      <Box sx={{ flexGrow: 1, p: 2 }}>
+        {/* Section name and buttons in one row */}
+        <Box
+          display="flex"
+          alignItems="center"
+          justifyContent="space-between"
+          mb={2}
         >
-          <thead>
-            <tr>
-              <th style={{ width: "100px" }}>Time</th>
-              {days.map((day) => (
-                <th key={day}>{day}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {timeSlots.map((time, rowIndex) => (
-              <tr key={rowIndex}>
-                <td style={{ fontSize: "0.75rem", padding: "4px" }}>{time}</td>
-                {days.map((day) => {
-                  const key = `${day}_${rowIndex}`;
-                  const cellInfo = mergedCells[key];
-                  if (cellInfo && cellInfo.rowSpan > 0) {
-                    const { entry, rowSpan } = cellInfo;
-                    // Check professor eligibility before allowing drop
-                    const canDrop =
-                      draggedProfessor &&
-                      professorAvailability[draggedProfessor.ProfessorID] &&
-                      professorAvailability[
-                        draggedProfessor.ProfessorID
-                      ].eligibleSubjects.includes(entry.SubjectID);
-                    return (
-                      <td
-                        key={key}
-                        rowSpan={rowSpan}
-                        onDragOver={(e) => {
-                          e.preventDefault();
-                        }}
-                        onDrop={() => {
-                          if (canDrop) {
-                            onDrop(entry.ScheduleID);
-                          } else if (draggedProfessor) {
-                            alert(
-                              "This professor is not eligible to teach this subject."
-                            );
-                          }
-                        }}
-                        style={{
-                          backgroundColor: "#d5f0d5",
-                          minWidth: 120,
-                          verticalAlign: "top",
-                        }}
-                      >
-                        <div style={{ padding: "6px", fontSize: "0.85rem" }}>
-                          <strong>
-                            {entry.CourseCode} - {entry.CourseName} (
-                            {entry.isLab ? "Lab" : "Lecture"})
-                          </strong>
-                          <br />
-                          Room: {entry.RoomName}
-                          <br />
-                          {entry.LectureHours + entry.LabHours} hrs
-                          <br />
-                          Professor:{" "}
-                          <span
-                            style={{ color: entry.FullName ? "black" : "red" }}
-                          >
-                            {entry.FullName || "Unassigned"}
-                          </span>
-                          <br />
-                          {entry.ProfessorID && (
-                            <button
-                              style={{
-                                marginLeft: 8,
-                                background: "#ffcccc",
-                                border: "none",
-                                borderRadius: "4px",
-                                padding: "2px 8px",
-                                cursor: "pointer",
-                              }}
-                              onClick={() => removeProfessor(entry.ScheduleID)}
-                            >
-                              Remove
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    );
-                  } else if (cellInfo && cellInfo.rowSpan === 0) {
-                    return null;
-                  } else {
-                    return <td key={key}></td>;
-                  }
-                })}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        <div style={{ marginTop: 16, textAlign: "right" }}>
-          <button
-            onClick={saveAssignments}
-            style={{
-              padding: "10px 24px",
-              fontSize: "1rem",
-              background: "#1976d2",
-              color: "white",
-              border: "none",
-              borderRadius: "6px",
-              cursor: "pointer",
-            }}
+          <Box fontWeight="bold" fontSize={20}>
+            {sectionName ? `Assign Professors for ${sectionName}` : ""}
+          </Box>
+          <Box display="flex" gap={2}>
+            <Button variant="outlined" onClick={() => navigate(-1)}>
+              Cancel
+            </Button>
+            <Button
+              variant="contained"
+              color="success"
+              onClick={saveAssignments}
+            >
+              Save Assignments
+            </Button>
+          </Box>
+        </Box>
+        <Box sx={{ overflowX: "auto" }}>
+          <table
+            border={1}
+            cellPadding={4}
+            style={{ borderCollapse: "collapse", width: "100%" }}
           >
-            Save Assignments
-          </button>
-        </div>
-      </div>
-    </div>
+            <thead>
+              <tr>
+                <th style={{ width: "100px" }}>Time</th>
+                {days.map((day) => (
+                  <th key={day}>{day}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {timeSlots.map((time, rowIndex) => (
+                <tr key={rowIndex}>
+                  <td style={{ fontSize: "0.75rem", padding: "4px" }}>
+                    {time}
+                  </td>
+                  {days.map((day) => {
+                    const key = `${day}_${rowIndex}`;
+                    const cellInfo = mergedCells[key];
+                    if (cellInfo && cellInfo.rowSpan > 0) {
+                      const { entry, rowSpan } = cellInfo;
+                      // Calculate hours from rowSpan (each slot is 0.5 hr)
+                      const hours = rowSpan * 0.5;
+                      // Check professor eligibility before allowing drop
+                      const canDrop =
+                        draggedProfessor &&
+                        professorAvailability[draggedProfessor.ProfessorID] &&
+                        professorAvailability[
+                          draggedProfessor.ProfessorID
+                        ].eligibleSubjects.includes(entry.SubjectID);
+                      return (
+                        <td
+                          key={key}
+                          rowSpan={rowSpan}
+                          onDragOver={(e) => {
+                            e.preventDefault();
+                          }}
+                          onDrop={() => {
+                            if (canDrop) {
+                              onDrop(entry.ScheduleID);
+                            } else if (draggedProfessor) {
+                              alert(
+                                "This professor is not eligible to teach this subject."
+                              );
+                            }
+                          }}
+                          style={{
+                            backgroundColor: "#d5f0d5",
+                            minWidth: 120,
+                            verticalAlign: "top",
+                          }}
+                        >
+                          <div style={{ padding: "6px", fontSize: "0.85rem" }}>
+                            <strong>
+                              {entry.CourseCode} - {entry.CourseName} (
+                              {entry.isLab ? "Lab" : "Lecture"})
+                            </strong>
+                            <br />
+                            Room: {entry.RoomName}
+                            <br />
+                            {hours} hrs
+                            <br />
+                            Professor:{" "}
+                            <span
+                              style={{
+                                color: entry.FullName ? "black" : "red",
+                              }}
+                            >
+                              {entry.FullName || "Unassigned"}
+                            </span>
+                            <br />
+                            {entry.ProfessorID && (
+                              <button
+                                style={{
+                                  marginLeft: 8,
+                                  background: "#ffcccc",
+                                  border: "none",
+                                  borderRadius: "4px",
+                                  padding: "2px 8px",
+                                  cursor: "pointer",
+                                }}
+                                onClick={() =>
+                                  removeProfessor(entry.ScheduleID)
+                                }
+                              >
+                                Remove
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      );
+                    } else if (cellInfo && cellInfo.rowSpan === 0) {
+                      return null;
+                    } else {
+                      return <td key={key}></td>;
+                    }
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Box>
+      </Box>
+    </Box>
   );
 };
 
