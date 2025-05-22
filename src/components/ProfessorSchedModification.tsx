@@ -1,4 +1,4 @@
-// My Suggestion
+// Co-Pilot's Suggestion
 
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
@@ -11,6 +11,7 @@ import {
   FormControl,
   InputLabel,
 } from "@mui/material";
+import { Select as MuiSelect, MenuItem as MuiMenuItem } from "@mui/material"; // already imported, just for clarity
 
 const days = [
   "Monday",
@@ -92,6 +93,7 @@ interface TeachingSchedBlock {
   RoomName: string;
   SectionName: string;
   isLab?: boolean; // <-- Add this line
+  SubstituteProfessorID?: number | null; // <-- Add this line
 }
 
 const ADMIN_BLOCK_SLOTS = 3; // 1.5 hours = 3 slots
@@ -225,9 +227,26 @@ const ProfessorSchedModification: React.FC = () => {
             if (/\(Lab\)/i.test(sched.CourseName)) isLab = true;
             if (/\(Lecture\)/i.test(sched.CourseName)) isLab = false;
           }
-          return { ...sched, isLab } as TeachingSchedBlock;
+          // Add SubstituteProfessorID if present
+          return {
+            ...sched,
+            isLab,
+            SubstituteProfessorID: sched.SubstituteProfessorID ?? null,
+          } as TeachingSchedBlock;
         });
         setTeachingScheds(patched);
+
+        // Initialize selectedSubProf state to reflect SubstituteProfessorID from backend
+        setSelectedSubProf(
+          patched.reduce((acc, sched) => {
+            acc[sched.ScheduleID] =
+              sched.SubstituteProfessorID !== undefined &&
+              sched.SubstituteProfessorID !== null
+                ? sched.SubstituteProfessorID
+                : "";
+            return acc;
+          }, {} as { [scheduleId: number]: number | "" })
+        );
 
         // Process lab split and auto admin blocks
         if (professor.EmploymentStatus === "Full-Time") {
@@ -283,6 +302,8 @@ const ProfessorSchedModification: React.FC = () => {
         setTeachingScheds([]);
         setProcessedTeachingScheds([]);
         setAutoLabAdminBlocks([]);
+        // Also clear selectedSubProf on error
+        setSelectedSubProf({});
       });
 
     // Fetch other schedules (Administration/Consultation) from backend
@@ -520,7 +541,7 @@ const ProfessorSchedModification: React.FC = () => {
   // Save handler
   const handleSave = async () => {
     try {
-      // Only save user-plotted Administration/Consultation blocks (not autoLabAdmin)
+      // Save other schedules as before
       const toSave = otherScheds.filter((b) => !b._autoLabAdmin);
       console.log("Saving other schedules for professor:", professorId, toSave);
       const response = await fetch(
@@ -540,11 +561,45 @@ const ProfessorSchedModification: React.FC = () => {
         console.error("Failed to save schedules, server response:", errText);
         throw new Error("Failed to save schedules");
       }
-      alert("Other schedules saved!");
+
+      console.log("SelectedSubProf state:", selectedSubProf);
+
+      // Save substitute professors for each schedule
+      const subAssignments = processedTeachingScheds.map((sched) => ({
+        ScheduleID: sched.ScheduleID,
+        SubstituteProfessorID:
+          selectedSubProf[sched.ScheduleID] === undefined ||
+          selectedSubProf[sched.ScheduleID] === ""
+            ? null
+            : selectedSubProf[sched.ScheduleID],
+      }));
+
+      if (subAssignments.length > 0) {
+        console.log("subAssignments to send:", subAssignments);
+        const subResp = await fetch(
+          "http://localhost:3000/api/profassign/assign-subs",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ assignments: subAssignments }),
+          }
+        );
+        console.log(
+          "POST /api/profassign/assign-subs response:",
+          subResp.status
+        );
+        if (!subResp.ok) {
+          const errText = await subResp.text();
+          console.error("Failed to save substitute assignments:", errText);
+          throw new Error("Failed to save substitute assignments");
+        }
+      }
+
+      alert("Other schedules and substitutes saved!");
       navigate(-1);
     } catch (err) {
       console.error("Error in handleSave:", err);
-      alert("Failed to save schedules.");
+      alert("Failed to save schedules or substitutes.");
     }
   };
 
@@ -734,6 +789,57 @@ const ProfessorSchedModification: React.FC = () => {
     ]);
   }, [teachingScheds, professorId, professor.EmploymentStatus]);
 
+  // State to hold available substitute professors per schedule
+  const [availableSubProfs, setAvailableSubProfs] = useState<{
+    [scheduleId: number]: {
+      ProfessorID: number;
+      FullName: string;
+      EmploymentStatus: string;
+    }[];
+  }>({});
+
+  // State to hold selected substitute professor per schedule
+  const [selectedSubProf, setSelectedSubProf] = useState<{
+    [scheduleId: number]: number | "";
+  }>({});
+
+  // Fetch available substitute professors for each teaching schedule
+  useEffect(() => {
+    // Only fetch for teachingScheds that have a ScheduleID
+    const fetchAvailable = async () => {
+      const newAvailable: {
+        [scheduleId: number]: {
+          ProfessorID: number;
+          FullName: string;
+          EmploymentStatus: string;
+        }[];
+      } = {};
+      await Promise.all(
+        teachingScheds.map(async (sched) => {
+          if (!sched.ScheduleID) return;
+          try {
+            const resp = await fetch(
+              `http://localhost:3000/api/profassign/available-professors/${sched.ScheduleID}`
+            );
+            if (!resp.ok) return;
+            const data = await resp.json();
+            console.log(
+              `Fetched available professors for schedule ${sched.ScheduleID}:`,
+              data
+            );
+            newAvailable[sched.ScheduleID] = data;
+          } catch {
+            console.error(
+              `Failed to fetch available professors for schedule ${sched.ScheduleID}`
+            );
+          }
+        })
+      );
+      setAvailableSubProfs(newAvailable);
+    };
+    if (teachingScheds.length > 0) fetchAvailable();
+  }, [teachingScheds]);
+
   return (
     <Box p={3} display="flex">
       {/* Sidebar for professor info and summary */}
@@ -905,11 +1011,62 @@ const ProfessorSchedModification: React.FC = () => {
                               Room: {block.RoomName}
                               <br />
                               Section: {block.SectionName}
+                              {/* Substitute Professor Combo Box */}
+                              <div style={{ marginTop: 8 }}>
+                                <select
+                                  value={
+                                    selectedSubProf[block.ScheduleID] ?? ""
+                                  }
+                                  onChange={(e) => {
+                                    setSelectedSubProf((prev) => ({
+                                      ...prev,
+                                      [block.ScheduleID]: e.target.value
+                                        ? Number(e.target.value)
+                                        : "",
+                                    }));
+                                  }}
+                                  style={{ minWidth: 150, padding: "4px" }}
+                                >
+                                  <option value="">Select Substitute</option>
+                                  <optgroup label="Full-Time">
+                                    {(availableSubProfs[block.ScheduleID] || [])
+                                      .filter(
+                                        (prof) =>
+                                          prof.EmploymentStatus === "Full-Time"
+                                      )
+                                      .map((prof) => (
+                                        <option
+                                          key={prof.ProfessorID}
+                                          value={prof.ProfessorID}
+                                        >
+                                          {prof.FullName}
+                                        </option>
+                                      ))}
+                                  </optgroup>
+                                  <optgroup label="Part-Time">
+                                    {(availableSubProfs[block.ScheduleID] || [])
+                                      .filter(
+                                        (prof) =>
+                                          prof.EmploymentStatus === "Part-Time"
+                                      )
+                                      .map((prof) => (
+                                        <option
+                                          key={prof.ProfessorID}
+                                          value={prof.ProfessorID}
+                                        >
+                                          {prof.FullName}
+                                        </option>
+                                      ))}
+                                  </optgroup>
+                                </select>
+                              </div>
                             </div>
                           </td>
                         );
                       } else {
                         const { block, rowSpan } = cell;
+                        /* Can be used to calculate rowSpan based on time slots
+                         Or pretty much the duration of the block
                         const startHHMM = getHHMM(block.StartTime);
                         const endHHMM = getHHMM(block.EndTime);
                         const startIdx = timeSlots.findIndex(
@@ -919,6 +1076,7 @@ const ProfessorSchedModification: React.FC = () => {
                           (slot) => getSlotStartHHMM(slot) === endHHMM
                         );
                         const slots = endIdx > startIdx ? endIdx - startIdx : 1;
+                      */
                         return (
                           <td
                             key={key}

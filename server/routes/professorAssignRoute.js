@@ -16,7 +16,7 @@ router.get("/schedules/professor/:id", async (req, res) => {
       .query(`
         SELECT 
           s.ScheduleID, s.SectionID, s.SubjectID,
-          s.ProfessorID, s.RoomID,
+          s.ProfessorID, s.SubstituteProfessorID, s.RoomID, 
           s.DayOfWeek, s.StartTime, s.EndTime,
           subj.CourseCode, subj.CourseName, subj.IsLab,
           prof.FullName AS ProfessorName,
@@ -321,6 +321,88 @@ router.get("/professor-current-units/:professorId", async (req, res) => {
   } catch (err) {
     console.error("Error fetching professor CurrentUnits:", err);
     res.status(500).send("Server error while fetching professor CurrentUnits");
+  }
+});
+
+// GET: Find available professors for a given schedule slot to be a SubProf
+router.get("/available-professors/:scheduleId", async (req, res) => {
+  try {
+    const pool = await poolPromise;
+    const scheduleId = parseInt(req.params.scheduleId, 10);
+
+    // 1. Get the schedule's time info
+    const schedResult = await pool.request().input("ScheduleID", scheduleId)
+      .query(`
+        SELECT DayOfWeek, CAST(StartTime AS time) AS StartTime, CAST(EndTime AS time) AS EndTime
+        FROM Schedules
+        WHERE ScheduleID = @ScheduleID
+      `);
+
+    if (schedResult.recordset.length === 0) {
+      return res.status(404).json({ message: "Schedule not found" });
+    }
+
+    const { DayOfWeek, StartTime, EndTime } = schedResult.recordset[0];
+
+    // 2. Find available professors using your overlap query (cast all to time)
+    const profResult = await pool
+      .request()
+      .input("DayOfWeek", DayOfWeek)
+      .input("StartTime", StartTime)
+      .input("EndTime", EndTime).query(`
+        SELECT p.ProfessorID, p.FullName, p.EmploymentStatus
+        FROM Professors p
+        WHERE NOT EXISTS (
+          SELECT 1 FROM Schedules s
+          WHERE s.ProfessorID = p.ProfessorID
+            AND s.DayOfWeek = @DayOfWeek
+            AND (CAST(s.StartTime AS time) < CAST(@EndTime AS time) AND CAST(s.EndTime AS time) > CAST(@StartTime AS time))
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM ProfessorOtherSchedules o
+          WHERE o.ProfessorID = p.ProfessorID
+            AND o.DayOfWeek = @DayOfWeek
+            AND (CAST(o.StartTime AS time) < CAST(@EndTime AS time) AND CAST(o.EndTime AS time) > CAST(@StartTime AS time))
+        )
+      `);
+
+    res.json(profResult.recordset);
+  } catch (err) {
+    console.error("Error finding available professors:", err);
+    res.status(500).send("Server error while finding available professors");
+  }
+});
+
+// POST: Assign substitute professors to schedules
+router.post("/assign-subs", async (req, res) => {
+  console.log("POST /api/profassign/assign-subs called");
+  console.log("Request body:", req.body);
+  try {
+    const pool = await poolPromise;
+    const { assignments } = req.body;
+    if (!Array.isArray(assignments) || assignments.length === 0) {
+      return res.status(400).json({ message: "No assignments provided" });
+    }
+    for (const { ScheduleID, SubstituteProfessorID } of assignments) {
+      await pool
+        .request()
+        .input("ScheduleID", ScheduleID)
+        .input(
+          "SubstituteProfessorID",
+          SubstituteProfessorID === null ? null : SubstituteProfessorID
+        ).query(`
+          UPDATE Schedules
+          SET SubstituteProfessorID = @SubstituteProfessorID
+          WHERE ScheduleID = @ScheduleID
+        `);
+      console.log(
+        `Updated ScheduleID ${ScheduleID} with SubstituteProfessorID ${SubstituteProfessorID}`
+      );
+    }
+    res.json({ success: true, updated: assignments.length });
+  } catch (err) {
+    console.error("Error saving substitute assignments:", err);
+    res.status(500).send("Server error while saving substitute assignments");
   }
 });
 
