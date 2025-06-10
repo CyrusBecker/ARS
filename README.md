@@ -1,3 +1,9 @@
+# Installation Notes:
+The node and npm versions used are v22.14.0 and 11.2.0 respectively.
+
+### Message for A.:
+There is also another issue regarding the database because I used dotenv and Unique contraints, along with replacing them with some other contraint at some point. This definitely has to be addressed at some point.
+
 # React + TypeScript + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
